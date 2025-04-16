@@ -29,7 +29,7 @@ export default function BottomTabNavigator() {
           // Use theme colors automatically or uncomment to override
           // activeColor={'#89A6F4'}
           activeIndicatorStyle={{
-            backgroundColor: '#89A6F4', // <-- Your desired background color for the indicator
+            backgroundColor: '#3777F8', // <-- Your desired background color for the indicator
           }}
           // Labeled is true by default, Shifting is false by default
           // which matches the appearance in the image.

@@ -1,12 +1,18 @@
 import React from 'react';
-import {View} from 'react-native';
+import {StyleSheet, View, Image} from 'react-native';
 import {Text, Appbar} from 'react-native-paper';
 
 export default function HomeScreen() {
   return (
     <View>
-      <Appbar.Header>
-        <Appbar.Content title="Home" />
+      <Appbar.Header style={styles.appBar}>
+        <Image
+          source={require('../assets/images/logo.png')} // Adjust path if needed
+          style={styles.appIconSmall}
+        />
+        <Text style={styles.appBarTitle}>
+          <Text style={{color: '#3777F8'}}>Docu</Text>Lingua
+        </Text>
       </Appbar.Header>
 
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
@@ -15,3 +21,20 @@ export default function HomeScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  appBar: {
+    backgroundColor: 'white',
+    elevation: 4,
+    paddingHorizontal: 10,
+  },
+  appIconSmall: {
+    width: 32,
+    height: 32,
+    marginRight: 10,
+  },
+  appBarTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+});
