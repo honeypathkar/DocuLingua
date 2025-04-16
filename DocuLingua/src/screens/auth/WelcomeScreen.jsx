@@ -4,8 +4,8 @@ import {Title, Button, Text} from 'react-native-paper';
 
 const {width, height} = Dimensions.get('window');
 
-const WELCOME_IMAGE_PATH = require('../assets/images/welcome_image.png'); // adjust path
-const LOGO_IMAGE_PATH = require('../assets/images/logo.png'); // adjust path
+const WELCOME_IMAGE_PATH = require('../../assets/images/welcome_image.png'); // adjust path
+const LOGO_IMAGE_PATH = require('../../assets/images/logo.png'); // adjust path
 
 const WelcomeScreen = ({navigation}) => {
   const handleLoginPress = () => navigation.navigate('Login');

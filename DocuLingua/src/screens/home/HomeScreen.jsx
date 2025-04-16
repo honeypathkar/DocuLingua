@@ -20,7 +20,7 @@ import {
   TouchableRipple,
   Surface,
 } from 'react-native-paper';
-import AppHeader from '../components/AppHeader';
+import AppHeader from '../../components/AppHeader';
 
 // Placeholder data for the file list (remains the same)
 const filesData = [

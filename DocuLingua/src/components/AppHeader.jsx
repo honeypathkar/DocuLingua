@@ -7,36 +7,44 @@ import {
   View,
   TouchableOpacity,
   Keyboard,
+  ToastAndroid,
 } from 'react-native';
-import {Appbar, useTheme, Searchbar} from 'react-native-paper';
+import {Appbar, useTheme, Searchbar, Menu} from 'react-native-paper';
+import {useNavigation} from '@react-navigation/native';
 
 export default function AppHeader({showSearchIcon = false}) {
   const theme = useTheme();
+  const navigation = useNavigation(); // Standard hook
+
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false); // State for menu
 
-  // --- Theme Log ---
-  useEffect(() => {
-    /* ... theme log ... */
-  }, [theme]);
+  const userName = 'Honey Pathkar';
 
-  // --- Create Styles INSIDE Component ---
+  useEffect(() => {}, [theme]);
+
+  // --- Styles ---
   const styles = useMemo(
     () =>
       StyleSheet.create({
         appBar: {
           backgroundColor: theme.colors.surface || 'white',
           elevation: 4,
-          alignItems: 'center', // This centers children (back icon, searchbar) in the header
+          alignItems: 'center',
           height: 60,
           paddingHorizontal: 5,
         },
         logoTitleContainer: {
           flexDirection: 'row',
           alignItems: 'center',
-          marginLeft: 5,
+          marginLeft: 5, // Adjusted margin
         },
-        appIconSmall: {width: 32, height: 32, marginRight: 10},
+        appIconSmall: {
+          width: 32,
+          height: 32,
+          marginRight: 10,
+        },
         appBarTitle: {
           fontSize: 22,
           fontWeight: 'bold',
@@ -46,25 +54,44 @@ export default function AppHeader({showSearchIcon = false}) {
           width: 40,
           height: 40,
           borderRadius: 20,
-          backgroundColor: 'white',
+          backgroundColor: 'white', // Added background color for placeholder
         },
-        profileTouchable: {marginLeft: 8, marginRight: 5},
-        backAction: {marginRight: 5, marginLeft: 0},
+        profileTouchable: {
+          marginLeft: 8, // Adjusted margin
+          marginRight: 5, // Adjusted margin
+          borderRadius: 20, // Make touchable area round
+        },
+        backAction: {
+          marginRight: 5,
+          marginLeft: 0,
+        },
         searchbar: {
           flex: 1,
-          height: 48, // Keep specific height
+          height: 48,
           marginHorizontal: 5,
-          backgroundColor: theme.colors.primaryContainer || 'white', // Reverted background
-          alignItems: 'center',
+          backgroundColor: theme.colors.primaryContainer || '#EEE', // Use surfaceVariant
+          // alignItems: 'center', // Often not needed for searchbar container
         },
         searchInput: {
           fontSize: 16,
-          color: theme.colors.onSurface,
+          // Adjust internal alignment if needed, often defaults work
+          // textAlignVertical: 'center', // Try for Android if text is off-center
           paddingBottom: 20,
-          // The Searchbar component itself adds internal padding.
-          // If still misaligned, try explicitly setting padding OR adjusting height slightly.
-          // Example: paddingVertical: 0, // To remove default padding if it's causing issues
-          // Example: textAlignVertical: 'center', // Might help on Android
+        },
+        menuItemTitle: {
+          // Style for Menu.Item titles
+          fontSize: 16,
+        },
+        menuItemDisabledTitle: {
+          // Specific style for disabled item (username)
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: theme.colors.onSurface, // Make it look like regular text
+        },
+        menuItemLogoutTitle: {
+          // Specific style for logout item
+          fontSize: 16,
+          color: theme.colors.error, // Use error color for logout
         },
       }),
     [theme],
@@ -79,18 +106,37 @@ export default function AppHeader({showSearchIcon = false}) {
     setIsSearchActive(false);
     setSearchQuery('');
   };
-  const handleProfile = () => {
-    console.log('Profile pressed');
-  };
   const performSearch = () => {
-    Keyboard.dismiss(); /* ... search logic ... */
+    Keyboard.dismiss();
+    console.log('Performing search for:', searchQuery);
   };
 
-  // --- JSX ---
+  // --- Menu Handlers ---
+  const openProfileMenu = () => setIsProfileMenuVisible(true);
+  const closeProfileMenu = () => setIsProfileMenuVisible(false);
+
+  const handleLogout = () => {
+    closeProfileMenu();
+    console.log('Logout pressed');
+    // Reset navigation stack to Welcome screen
+    // Ensure 'Welcome' matches the screen name in your root navigator (App.js)
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'Welcome'}],
+    });
+    ToastAndroid.showWithGravity(
+      'Logout Successfull.',
+      ToastAndroid.LONG,
+      ToastAndroid.BOTTOM,
+    );
+  };
+  // ---------------------
+
+  // --- Render ---
   return (
     <Appbar.Header style={styles.appBar}>
       {isSearchActive ? (
-        // Search Active View
+        // --- Search Active View ---
         <>
           <Appbar.Action
             icon="arrow-left"
@@ -103,22 +149,22 @@ export default function AppHeader({showSearchIcon = false}) {
             placeholder="Search documents..."
             onChangeText={setSearchQuery}
             value={searchQuery}
-            style={styles.searchbar} // Container style
-            inputStyle={styles.searchInput} // Input text style
+            style={styles.searchbar}
+            inputStyle={styles.searchInput}
             iconColor={theme.colors.primary}
             onSubmitEditing={performSearch}
             autoFocus={true}
-            elevation={0} // Keep elevation low if preferred
-            mode="bar"
-            // textAlignVertical="center" // You can try adding this prop directly too for Android alignment
+            elevation={0} // Set elevation to 0 if using mode="bar" for flatter look
+            mode="bar" // Recommended mode for inline search in appbar
           />
         </>
       ) : (
-        // Default View
+        // --- Default View ---
         <>
+          {/* Logo and Title */}
           <View style={styles.logoTitleContainer}>
             <Image
-              source={require('../assets/images/logo.png')}
+              source={require('../assets/images/logo.png')} // Verify path
               style={styles.appIconSmall}
               resizeMode="contain"
             />
@@ -126,7 +172,11 @@ export default function AppHeader({showSearchIcon = false}) {
               <Text style={{color: theme.colors.primary}}>Docu</Text>Lingua
             </Text>
           </View>
+
+          {/* Spacer fills remaining space */}
           <View style={{flex: 1}} />
+
+          {/* Search Icon (Conditional) */}
           {showSearchIcon && (
             <Appbar.Action
               icon="magnify"
@@ -135,15 +185,41 @@ export default function AppHeader({showSearchIcon = false}) {
               size={28}
             />
           )}
-          <TouchableOpacity
-            onPress={handleProfile}
-            style={styles.profileTouchable}>
-            <Image
-              source={require('../assets/images/no-user-image.png')}
-              style={styles.profileImage}
-              resizeMode="cover"
+
+          {/* Profile Image with Dropdown Menu */}
+          <Menu
+            visible={isProfileMenuVisible}
+            onDismiss={closeProfileMenu}
+            anchor={
+              <TouchableOpacity
+                onPress={openProfileMenu}
+                style={styles.profileTouchable}>
+                <Image
+                  source={require('../assets/images/no-user-image.png')} // Verify path
+                  style={styles.profileImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            }
+            // Optional: Adjust content styling if needed
+            // contentStyle={{ backgroundColor: theme.colors.surface }}
+          >
+            {/* User Name Item */}
+            <Menu.Item
+              title={userName || 'Not logged in'}
+              disabled // Non-interactive
+              style={{minWidth: 150}} // Give it some width
+              titleStyle={styles.menuItemDisabledTitle}
             />
-          </TouchableOpacity>
+
+            {/* Logout Item */}
+            <Menu.Item
+              onPress={handleLogout}
+              title="Logout"
+              leadingIcon="logout"
+              titleStyle={styles.menuItemLogoutTitle}
+            />
+          </Menu>
         </>
       )}
     </Appbar.Header>

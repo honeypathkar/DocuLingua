@@ -6,10 +6,9 @@ import {BottomNavigation, useTheme} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Import your screens
-import HomeScreen from '../screens/HomeScreen';
-import TranslateScreen from '../screens/TranslateScreen';
-import FilesScreen from '../screens/FilesScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import HomeScreen from '../screens/home/HomeScreen';
+import TranslateScreen from '../screens/translate/TranslateScreen';
+import ProfileScreen from '../screens/profile/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -105,7 +104,7 @@ export default function BottomTabNavigator() {
           },
         }}
       />
-      <Tab.Screen
+      {/*       <Tab.Screen
         name="Files"
         component={FilesScreen}
         options={{
@@ -114,7 +113,7 @@ export default function BottomTabNavigator() {
             return <Icon name="folder-outline" size={size} color={color} />;
           },
         }}
-      />
+      /> */}
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}

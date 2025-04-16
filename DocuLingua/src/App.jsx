@@ -4,10 +4,11 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {PaperProvider, MD3LightTheme as DefaultTheme} from 'react-native-paper';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
-import WelcomeScreen from './screens/WelcomeScreen'; // Adjust path if needed
+import WelcomeScreen from './screens/auth/WelcomeScreen'; // Adjust path if needed
 import BottomTabNavigator from './navigators/BottomTabNavigator'; // Adjust path if needed
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/RegisterScreen';
+import UploadScreen from './screens/translate/UploadScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -110,6 +111,12 @@ function App() {
             <Stack.Screen
               name="MainApp"
               component={BottomTabNavigator}
+              options={{animation: 'ios_from_right'}}
+            />
+
+            <Stack.Screen
+              name="UploadScreen"
+              component={UploadScreen}
               options={{animation: 'ios_from_right'}}
             />
             {/* You could add other screens like Signup, ForgotPassword here */}
