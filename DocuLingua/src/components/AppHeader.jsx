@@ -54,7 +54,7 @@ export default function AppHeader({showSearchIcon = false}) {
           width: 40,
           height: 40,
           borderRadius: 20,
-          backgroundColor: 'white', // Added background color for placeholder
+          backgroundColor: theme.colors.background, // Added background color for placeholder
         },
         profileTouchable: {
           marginLeft: 8, // Adjusted margin

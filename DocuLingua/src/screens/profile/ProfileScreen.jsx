@@ -1,88 +1,68 @@
-import React, {useState, useMemo} from 'react';
-// Import Image from react-native
+// src/screens/profile/ProfileScreen.jsx
+import React, {useState, useMemo, useContext} from 'react'; // Import useContext
 import {StyleSheet, View, ScrollView, Alert, Image} from 'react-native';
 import {
   Text,
-  useTheme,
-  // Avatar removed as we are using Image
+  useTheme, // Still use this for local styling if needed
   Surface,
   List,
   Divider,
-  Switch,
+  Switch, // Keep Switch import
   Button,
   Caption,
-  IconButton, // Import IconButton
+  IconButton,
 } from 'react-native-paper';
-import AppHeader from '../../components/AppHeader'; // Assuming you have this
+import AppHeader from '../../components/AppHeader'; // Adjust path if needed
 
-// --- (rest of the component code remains the same until createStyles) ---
+// Import the Theme Context Hook
+import {useThemeContext} from '../../context/ThemeContext'; // Adjust path if needed
+
+// ProfileScreen Component
 export default function ProfileScreen() {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const paperTheme = useTheme(); // Get current theme for styling within this screen
+  const styles = useMemo(() => createStyles(paperTheme), [paperTheme]); // Use paperTheme for styles
 
-  // State for toggles (replace with actual logic using context/state management)
+  // Get theme state and toggle function from Context
+  const {isDarkMode, toggleDarkMode} = useThemeContext();
+
+  // State for other toggles (unrelated to theme)
   const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false);
-  const [isDarkModeEnabled, setIsDarkModeEnabled] = useState(theme.dark); // Initial state based on theme
 
   const handleLogout = () => {
-    // Add your logout logic here
-    console.log('Logout Pressed');
-    Alert.alert('Logout', 'Are you sure you want to log out?');
+    /* ... your logout logic ... */
+    console.log('Logout Successfull');
   };
-
   const handleDeleteAccount = () => {
-    // Add your delete account logic here (should have confirmation)
-    console.log('Delete Account Pressed');
-    Alert.alert(
-      'Delete Account',
-      'This action is permanent and cannot be undone. Are you sure you want to delete your account?',
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => console.log('Account Deletion Confirmed'),
-        },
-      ],
-    );
+    /* ... your delete logic ... */
+    console.log('Account Deleted');
   };
-
-  // Dummy function for theme toggling - replace with your theme switching logic
-  const toggleDarkMode = () => {
-    setIsDarkModeEnabled(!isDarkModeEnabled);
-    // Here you would typically call a function from your Theme Context
-    // to switch the actual theme (e.g., toggleTheme())
-    console.log('Dark Mode Toggled - Implement actual theme switching');
-  };
-
   const handleEditProfile = () => {
-    // Add navigation or modal logic to edit profile
-    console.log('Edit Profile Pressed');
-    Alert.alert('Edit Profile', 'Navigate to profile edit screen.');
+    /* ... your edit profile logic ... */
+    console.log('Profile Edited');
   };
+
+  // No local state or dummy function needed for dark mode anymore
 
   return (
     <View style={styles.container}>
-      <AppHeader />
+      {/* Pass showSearchIcon={false} */}
+      <AppHeader showSearchIcon={false} />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* --- User Info Header --- */}
         <View style={styles.header}>
-          {/* Edit Icon Button */}
+          {/* ... Edit Icon, Image, Name, Email, Caption ... */}
           <IconButton
-            icon="pencil-outline" // Or just "pencil"
+            icon="pencil-outline"
             size={24}
             style={styles.editIcon}
             onPress={handleEditProfile}
-            iconColor={theme.colors.primary} // Style the icon color
-            mode="contained-tonal" // Adds a subtle background matching theme
+            iconColor={paperTheme.colors.primary}
+            mode="contained-tonal"
           />
-
-          {/* Use Image component */}
           <Image
-            // Use the require path from your previous code
             source={require('../../assets/images/no-user-image.png')}
-            style={styles.profileImage} // Apply specific styles
+            style={styles.profileImage}
           />
           <Text variant="headlineMedium" style={styles.userName}>
             Alex Johnson
@@ -90,12 +70,12 @@ export default function ProfileScreen() {
           <Text variant="bodyMedium" style={styles.userEmail}>
             alex.johnson@example.com
           </Text>
-          <Caption style={styles.accountType}>Free Account</Caption>
+          {/* <Caption style={styles.accountType}>Free Account</Caption> */}
         </View>
 
         {/* --- Stats --- */}
-        {/* Surface now respects the ScrollView padding */}
         <Surface style={styles.statsSurface} elevation={1}>
+          {/* ... Stat Items ... */}
           <View style={styles.statItem}>
             <Text variant="titleMedium">23</Text>
             <Caption>Documents</Caption>
@@ -113,10 +93,10 @@ export default function ProfileScreen() {
         </Surface>
 
         {/* --- Account Information --- */}
-        {/* List.Section titleStyle updated, List.Item default padding works */}
         <List.Section
           title="Account Information"
           titleStyle={styles.sectionTitle}>
+          {/* ... List Items ... */}
           <List.Item
             title="Full Name"
             description="Alex Johnson"
@@ -127,24 +107,24 @@ export default function ProfileScreen() {
             description="alex.johnson@example.com"
             left={() => <List.Icon icon="email-outline" />}
           />
-          <List.Item
+          {/* <List.Item
             title="Phone Number"
             description="+1 (555) 123-4567"
             left={() => <List.Icon icon="phone-outline" />}
-          />
+          /> */}
         </List.Section>
 
-        {/* Divider now respects the ScrollView padding */}
         <Divider style={styles.divider} />
 
         {/* --- Security --- */}
         <List.Section title="Security" titleStyle={styles.sectionTitle}>
+          {/* ... Change Password, 2FA Items ... */}
           <List.Item
             title="Change Password"
             description="Last changed 3 months ago"
             left={() => <List.Icon icon="lock-outline" />}
             right={() => <List.Icon icon="chevron-right" />}
-            onPress={() => console.log('Navigate to Change Password')} // Add navigation logic
+            onPress={() => console.log('Navigate to Change Password')}
           />
           <List.Item
             title="Two-Factor Authentication"
@@ -156,7 +136,7 @@ export default function ProfileScreen() {
                 onValueChange={setIsTwoFactorEnabled}
               />
             )}
-            onPress={() => setIsTwoFactorEnabled(!isTwoFactorEnabled)} // Make row clickable
+            onPress={() => setIsTwoFactorEnabled(!isTwoFactorEnabled)}
           />
         </List.Section>
 
@@ -166,51 +146,53 @@ export default function ProfileScreen() {
         <List.Section title="Preferences" titleStyle={styles.sectionTitle}>
           <List.Item
             title="Dark Mode"
-            description={isDarkModeEnabled ? 'On' : 'Off'}
+            // Use context state for description
+            description={isDarkMode ? 'On' : 'Off'}
             left={() => <List.Icon icon="theme-light-dark" />}
             right={() => (
               <Switch
-                value={isDarkModeEnabled}
+                // Use context state for value
+                value={isDarkMode}
+                // Use context function for toggling
                 onValueChange={toggleDarkMode}
+                // Use current paperTheme color for the switch styling
+                color={paperTheme.colors.primary}
               />
             )}
-            onPress={toggleDarkMode} // Make row clickable
+            // Use context function for toggling when row is pressed
+            onPress={toggleDarkMode}
           />
-          {/* Add other preferences like Notifications, Language here if needed */}
         </List.Section>
 
         <Divider style={styles.divider} />
 
         {/* --- Logout Button --- */}
-        {/* Button now respects the ScrollView padding */}
         <Button
           icon="logout"
-          mode="outlined" // Or "text"
+          mode="outlined"
           onPress={handleLogout}
           style={styles.logoutButton}
-          textColor={theme.colors.primary} // Use theme color
-        >
+          textColor={paperTheme.colors.primary}>
           Log Out
         </Button>
 
         <Divider style={styles.divider} />
 
         {/* --- Danger Zone --- */}
-        {/* Title and description respect ScrollView padding */}
         <List.Section
           title="Danger Zone"
-          titleStyle={[styles.sectionTitle, {color: theme.colors.error}]}>
+          titleStyle={[styles.sectionTitle, {color: paperTheme.colors.error}]}>
+          {/* ... Danger Description, Delete Button ... */}
           <Text style={styles.dangerDescription}>
             Permanently delete your account and all associated data. This action
             cannot be undone.
           </Text>
-          {/* Button now respects the ScrollView padding */}
           <Button
             icon="delete-forever-outline"
             mode="contained"
             onPress={handleDeleteAccount}
-            buttonColor={theme.colors.error} // Use theme error color for background
-            textColor={theme.colors.onError} // Use theme color for text on error background
+            buttonColor={paperTheme.colors.error}
+            textColor={paperTheme.colors.onError}
             style={styles.deleteButton}>
             Delete Account
           </Button>
@@ -220,21 +202,16 @@ export default function ProfileScreen() {
   );
 }
 
-// Define styles using theme
+// Define styles using theme (Keep createStyles function same as before)
 const createStyles = theme =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    scrollContent: {
-      paddingHorizontal: 16, // Added horizontal padding
-      paddingBottom: 30,
-    },
+    /* ... your existing styles ... */
+    container: {flex: 1, backgroundColor: theme.colors.background},
+    scrollContent: {paddingHorizontal: 16, paddingBottom: 30},
     header: {
-      position: 'relative', // Needed for absolute positioning of children
+      position: 'relative',
       alignItems: 'center',
-      paddingTop: 40, // Increased padding to avoid overlap with icon
+      paddingTop: 40,
       paddingBottom: 20,
       backgroundColor: theme.colors.surface,
       marginHorizontal: -16,
@@ -242,33 +219,19 @@ const createStyles = theme =>
       borderBottomLeftRadius: 15,
       borderBottomRightRadius: 15,
       marginBottom: 15,
-      // elevation: 2, // Can be added back if needed
     },
-    editIcon: {
-      position: 'absolute',
-      top: 10, // Adjust position as needed
-      right: 10, // Adjust position as needed
-      // backgroundColor: theme.colors.surfaceVariant, // Optional background square
-      // borderRadius: 8, // Optional rounded corners for background
-      zIndex: 1, // Ensure icon is above other elements if needed
-    },
-    // New style for the Image
+    editIcon: {position: 'absolute', top: 10, right: 10, zIndex: 1},
     profileImage: {
-      width: 100, // Match the previous Avatar size
-      height: 100, // Match the previous Avatar size
-      borderRadius: 40, // Make it circular (half of width/height)
+      width: 100,
+      height: 100,
+      borderRadius: 50,
       marginBottom: 10,
-      backgroundColor: '#fff', // Keep the white background if the image is transparent
-      // borderWidth: 1, // Optional border
-      borderColor: theme.colors.outlineVariant, // Optional border color
-    },
-    // avatar style removed
-    userName: {
-      fontWeight: 'bold',
-    },
-    userEmail: {
-      color: theme.colors.onSurfaceVariant,
-    },
+      // backgroundColor: theme.colors.surfaceVariant,
+      // borderColor: theme.colors.outlineVariant,
+      // borderWidth: 1,
+    }, // Adjusted radius and bg
+    userName: {fontWeight: 'bold', color: theme.colors.onSurface}, // Use theme color
+    userEmail: {color: theme.colors.onSurfaceVariant},
     accountType: {
       marginTop: 4,
       paddingHorizontal: 8,
@@ -283,13 +246,10 @@ const createStyles = theme =>
       justifyContent: 'space-around',
       paddingVertical: 15,
       borderRadius: theme.roundness,
-      backgroundColor: theme.colors.primaryContainer,
+      backgroundColor: theme.colors.secondaryContainer,
       marginBottom: 15,
-    },
-    statItem: {
-      alignItems: 'center',
-      flex: 1,
-    },
+    }, // Changed to secondary container
+    statItem: {alignItems: 'center', flex: 1},
     statsDivider: {
       width: 1,
       height: '80%',
@@ -302,9 +262,7 @@ const createStyles = theme =>
       fontWeight: 'bold',
       color: theme.colors.primary,
     },
-    divider: {
-      marginVertical: 10,
-    },
+    divider: {marginVertical: 10, backgroundColor: theme.colors.outlineVariant}, // Use theme color
     logoutButton: {
       marginTop: 15,
       marginBottom: 10,
@@ -316,8 +274,5 @@ const createStyles = theme =>
       fontSize: 14,
       textAlign: 'left',
     },
-    deleteButton: {
-      marginTop: 10,
-      marginBottom: 20,
-    },
+    deleteButton: {marginTop: 10, marginBottom: 20},
   });
