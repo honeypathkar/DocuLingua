@@ -9,6 +9,7 @@ import BottomTabNavigator from './navigators/BottomTabNavigator'; // Adjust path
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/RegisterScreen';
 import UploadScreen from './screens/translate/UploadScreen';
+import DocumentViewScreen from './screens/translate/DocumentViewSection';
 
 const Stack = createNativeStackNavigator();
 
@@ -117,6 +118,12 @@ function App() {
             <Stack.Screen
               name="UploadScreen"
               component={UploadScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+
+            <Stack.Screen
+              name="DocumentView"
+              component={DocumentViewScreen}
               options={{animation: 'ios_from_right'}}
             />
             {/* You could add other screens like Signup, ForgotPassword here */}

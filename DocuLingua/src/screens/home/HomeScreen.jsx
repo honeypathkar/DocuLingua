@@ -1,11 +1,9 @@
-// screens/HomeScreen.tsx
-import React, {useState, useMemo} from 'react'; // Import useMemo for optimization
+// screens/HomeScreen.js
+import React, {useState, useMemo} from 'react';
 import {
   StyleSheet,
   View,
   ScrollView,
-  Image,
-  TouchableOpacity,
   ImageBackground,
   Platform,
 } from 'react-native';
@@ -22,7 +20,10 @@ import {
 } from 'react-native-paper';
 import AppHeader from '../../components/AppHeader';
 
-// Placeholder data for the file list (remains the same)
+// --- Navigation Imports ---
+import {useNavigation} from '@react-navigation/native';
+
+// Placeholder data for the file list
 const filesData = [
   {
     id: '1',
@@ -45,6 +46,13 @@ const filesData = [
     icon: 'file-powerpoint-box',
     type: 'ppt',
   },
+  {
+    id: '4',
+    name: 'Invoice_April.xlsx',
+    date: 'April 12, 11:00 AM',
+    icon: 'file-excel-box',
+    type: 'xls',
+  },
 ];
 
 // --- Define base button data ---
@@ -55,9 +63,9 @@ const baseButtons = [
 ];
 
 export default function HomeScreen() {
-  const theme = useTheme(); // Access theme
+  const theme = useTheme();
   const [listTab, setListTab] = useState('recent');
-  const displayedFiles = filesData;
+  const navigation = useNavigation(); // Use navigation hook
 
   // --- Create Styles INSIDE the component ---
   const styles = useMemo(() => createStyles(theme), [theme]); // Pass theme
@@ -70,21 +78,38 @@ export default function HomeScreen() {
         return {
           ...button,
           style: {
+            // Style for the button itself within SegmentedButtons
             backgroundColor: isActive
               ? theme.colors.primaryContainer
-              : undefined,
-            // You can add other conditional styles like borderColor if needed
-            // borderColor: isActive ? theme.colors.primary : theme.colors.outline,
+              : 'transparent', // Use transparent for inactive
+            borderColor: theme.colors.outline, // Use outline color for border
           },
           labelStyle: {
+            // Style for the text label inside the button
             color: isActive
               ? theme.colors.onPrimaryContainer
               : theme.colors.onSurface,
+            fontWeight: isActive ? 'bold' : 'normal',
           },
+          // Adding ripple color for feedback
+          rippleColor: theme.colors.primaryContainer,
         };
       }),
     [listTab, theme],
-  ); // Recalculate when listTab or theme changes
+  );
+
+  // Filter files based on tab (example - you'd implement actual filtering)
+  const displayedFiles = filesData; // Placeholder: Show all files for now
+
+  // --- Handle Navigation ---
+  const handleFilePress = file => {
+    console.log(`Navigating to view: ${file.name}`);
+    navigation.navigate('DocumentView', {
+      // Navigate with parameters
+      documentId: file.id,
+      documentName: file.name,
+    });
+  };
 
   // --- JSX Structure ---
   return (
@@ -95,7 +120,7 @@ export default function HomeScreen() {
         <View style={styles.welcomeContainer}>
           <ImageBackground
             source={{
-              uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80',
+              uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80', // Example image
             }}
             style={styles.welcomeImageBackground}
             imageStyle={styles.imageBackgroundImageStyle}
@@ -116,7 +141,6 @@ export default function HomeScreen() {
             Quick Actions
           </Text>
           <View style={styles.quickActionsRow}>
-            {/* Scan Note Action */}
             <Surface style={styles.quickActionSurface} elevation={2}>
               <TouchableRipple
                 onPress={() => console.log('Scan Note pressed')}
@@ -132,7 +156,6 @@ export default function HomeScreen() {
                 </View>
               </TouchableRipple>
             </Surface>
-            {/* Upload PDF Action */}
             <Surface style={styles.quickActionSurface} elevation={2}>
               <TouchableRipple
                 onPress={() => console.log('Upload PDF pressed')}
@@ -153,13 +176,12 @@ export default function HomeScreen() {
 
         {/* Files Section */}
         <View style={styles.sectionContainer}>
-          {/* Use the dynamically styled buttons */}
           <SegmentedButtons
             value={listTab}
             onValueChange={setListTab}
             style={styles.segmentedButtons} // Styles for the container View
-            // REMOVED incorrect backgroundColor prop from here
             buttons={styledButtons} // Pass the styled buttons array
+            density="medium" // Adjust density for spacing
           />
           <List.Section style={styles.listSection}>
             {displayedFiles.map((file, index) => (
@@ -181,17 +203,28 @@ export default function HomeScreen() {
                     color={theme.colors.onSurfaceVariant}
                   />
                 )}
-                onPress={() => console.log(`Pressed ${file.name}`)}
+                onPress={() => handleFilePress(file)} // Pass the file object
                 style={[
                   styles.listItem,
-                  {
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: theme.colors.outlineVariant,
-                  },
+                  // Add border only if it's not the last item
+                  index < displayedFiles.length - 1
+                    ? {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: theme.colors.outlineVariant,
+                      }
+                    : null,
                 ]}
                 titleStyle={styles.listItemTitle}
+                descriptionStyle={styles.listItemDescription}
+                // Ripple effect for list item press
+                rippleColor="rgba(0, 0, 0, .1)"
               />
             ))}
+            {displayedFiles.length === 0 && (
+              <Text style={styles.noFilesText}>
+                No files found in this category.
+              </Text>
+            )}
           </List.Section>
         </View>
       </ScrollView>
@@ -199,81 +232,130 @@ export default function HomeScreen() {
   );
 }
 
-// --- Moved Styles creation into a function to pass theme ---
-// (Keep this function as defined in the previous correct example)
+// --- Styles function (createStyles) ---
 const createStyles = theme =>
   StyleSheet.create({
     container: {flex: 1, backgroundColor: theme.colors.background},
     scrollContent: {paddingHorizontal: 16, paddingBottom: 20},
     welcomeContainer: {
-      marginTop: 16,
+      marginTop: 16, // Add space from AppHeader
       marginBottom: 24,
       borderRadius: 12,
-      overflow: 'hidden',
+      overflow: 'hidden', // Needed for borderRadius on ImageBackground
+      // Add elevation/shadow for depth
       ...Platform.select({
         ios: {
           shadowColor: '#000',
           shadowOffset: {width: 0, height: 2},
-          shadowOpacity: 0.2,
-          shadowRadius: 2,
+          shadowOpacity: 0.1,
+          shadowRadius: 3,
         },
         android: {elevation: 4},
       }),
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.surface, // Ensure background for shadow
     },
-    welcomeImageBackground: {height: 200, justifyContent: 'center'},
-    imageBackgroundImageStyle: {borderRadius: 12},
+    welcomeImageBackground: {height: 200, justifyContent: 'center'}, // Reduced height
+    imageBackgroundImageStyle: {borderRadius: 12}, // Match container radius
     textOverlay: {
+      // Dark overlay for better text readability
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      backgroundColor: 'rgba(0, 0, 0, 0.35)',
       borderRadius: 12,
     },
     welcomeContent: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      padding: 16,
-      justifyContent: 'center',
+      padding: 20, // Increased padding
+      alignItems: 'flex-start', // Align text to the start
     },
-    welcomeTitle: {color: 'white', fontWeight: 'bold', marginBottom: 4},
-    welcomeSubtitle: {color: 'white', fontSize: 14},
+    welcomeTitle: {
+      color: 'white',
+      fontWeight: 'bold',
+      marginBottom: 4,
+      fontSize: 24, // Larger title
+    },
+    welcomeSubtitle: {
+      color: 'white',
+      fontSize: 14,
+      opacity: 0.9, // Slightly transparent subtitle
+    },
     sectionContainer: {marginBottom: 24},
     sectionTitle: {
       marginBottom: 12,
       fontWeight: 'bold',
       color: theme.colors.onSurface,
+      fontSize: 18,
     },
     quickActionsRow: {
       flexDirection: 'row',
-      justifyContent: 'space-around',
-      alignItems: 'center',
+      justifyContent: 'space-between', // Use space-between for edge spacing
     },
     quickActionSurface: {
       borderRadius: 12,
-      width: '45%',
-      alignItems: 'center',
-      justifyContent: 'center',
+      width: '48%', // Slightly adjust width for spacing
       backgroundColor: theme.colors.surface,
+      // Consistent elevation with welcome card
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: {width: 0, height: 1},
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        android: {elevation: 2},
+      }),
     },
     quickActionTouchable: {
       width: '100%',
       paddingVertical: 20,
-      borderRadius: 12,
+      paddingHorizontal: 10,
+      borderRadius: 12, // Match Surface borderRadius
+      alignItems: 'center', // Center content horizontally
     },
-    quickActionContent: {alignItems: 'center', justifyContent: 'center'},
+    quickActionContent: {
+      alignItems: 'center', // Center icon and text vertically
+      justifyContent: 'center',
+    },
     quickActionText: {
       marginTop: 8,
       fontSize: 14,
       color: theme.colors.onSurface,
+      fontWeight: '500',
     },
-    segmentedButtons: {marginBottom: 16}, // Styles FOR THE CONTAINER
+    segmentedButtons: {
+      marginBottom: 16,
+      // Container styling handled internally by SegmentedButtons usually
+    },
     listSection: {
       backgroundColor: theme.colors.surface,
       borderRadius: 8,
-      overflow: 'hidden',
+      overflow: 'hidden', // Clip List.Item borders to the rounded corners
+      // Add elevation/shadow
+      ...Platform.select({
+        ios: {
+          shadowColor: '#000',
+          shadowOffset: {width: 0, height: 1},
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        },
+        android: {elevation: 2},
+      }),
     },
-    listItem: {paddingVertical: 10, backgroundColor: theme.colors.surface},
-    listItemTitle: {fontSize: 16, color: theme.colors.onSurface},
+    listItem: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      backgroundColor: 'transparent', // Let List.Section handle background
+    },
+    listItemTitle: {
+      fontSize: 16,
+      color: theme.colors.onSurface,
+      fontWeight: '500', // Medium weight title
+    },
+    listItemDescription: {
+      fontSize: 12,
+      color: theme.colors.onSurfaceVariant, // Subdued color for date/description
+    },
+    noFilesText: {
+      textAlign: 'center',
+      paddingVertical: 20,
+      color: theme.colors.onSurfaceVariant,
+    },
   });
