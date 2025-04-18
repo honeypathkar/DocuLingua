@@ -8,7 +8,13 @@ const app = express();
 const PORT = process.env.PORT || 8001; // Use environment variable for port or default
 
 // Middleware
-app.use(cors()); // Enable CORS for all origins (for development - refine in production)
+app.use(
+  cors({
+    origin: "*", // Allow all origins (for development - refine in production)
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    credentials: true, // Allow cookies
+  })
+); // Enable CORS for all origins (for development - refine in production)
 app.use(express.json()); // To parse JSON request bodies
 
 // Routes

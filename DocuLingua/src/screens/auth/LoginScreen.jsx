@@ -19,6 +19,10 @@ import {
   Appbar,
 } from 'react-native-paper';
 
+import axios from 'axios'; // Import axios
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
+import {LoginUrl} from '../../../API';
+
 const LoginScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,8 +32,36 @@ const LoginScreen = ({navigation}) => {
   // Create styles inside, dependent on theme
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const handleLogin = () => {
-    /* ... */ navigation.replace('MainApp');
+  const handleLogin = async () => {
+    console.log('Login Url: ', LoginUrl);
+    try {
+      const response = await axios.post(
+        'http://localhost:8001/api/users/login',
+        {
+          email: email,
+          password: password,
+        },
+      );
+
+      if (response.status === 200) {
+        const token = response.data.token;
+        // Store the token in AsyncStorage
+        await AsyncStorage.setItem('userToken', token);
+        // Store the "remember me" status
+        await AsyncStorage.setItem('rememberMe', JSON.stringify(rememberMe));
+
+        // Navigate to the MainApp
+        navigation.replace('MainApp');
+      } else {
+        // Handle other status codes (e.g., 401, 500)
+        console.error('Login failed:', response.status, response.data);
+        // Display an error message to the user (e.g., using Alert)
+      }
+    } catch (error) {
+      // Handle network errors or other exceptions
+      console.error('Login error:', error);
+      // Display an error message to the user
+    }
   };
   const handleForgotPassword = () => {
     /* ... */

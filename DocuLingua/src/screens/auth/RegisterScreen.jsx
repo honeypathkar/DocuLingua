@@ -20,6 +20,10 @@ import {
   Appbar, // Already imported useTheme
 } from 'react-native-paper';
 
+import axios from 'axios'; // Import axios
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
+import {SignupUrl} from '../../API'; // Import API endpoint
+
 const RegisterScreen = ({navigation}) => {
   // State variables remain the same...
   const [firstName, setFirstName] = useState('');
@@ -36,10 +40,38 @@ const RegisterScreen = ({navigation}) => {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   // Functions remain the same...
-  const handleRegister = () => {
-    /* ... validation ... */ Alert.alert('Success', 'Account created!', [
-      {text: 'OK', onPress: () => navigation.navigate('Login')},
-    ]);
+  const handleRegister = async () => {
+    try {
+      // Basic validation (you might want to improve this)
+      if (password !== confirmPassword) {
+        Alert.alert('Error', 'Passwords do not match');
+        return;
+      }
+
+      const response = await axios.post(SignupUrl, {
+        fullName: `${firstName} ${lastName}`,
+        email: email,
+        password: password,
+      });
+
+      if (response.status === 201) {
+        const token = response.data.token;
+        // Store the token in AsyncStorage
+        await AsyncStorage.setItem('userToken', token);
+
+        Alert.alert('Success', 'Account created!', [
+          {text: 'OK', onPress: () => navigation.navigate('Login')}, // Navigate to Login after successful registration
+        ]);
+      } else {
+        // Handle other status codes (e.g., 400, 409, 500)
+        console.error('Registration failed:', response.status, response.data);
+        Alert.alert('Error', 'Registration failed. Please try again.');
+      }
+    } catch (error) {
+      // Handle network errors or other exceptions
+      console.error('Registration error:', error);
+      Alert.alert('Error', 'Registration error. Please check your connection.');
+    }
   };
   const toggleAgreeToTerms = () => setAgreeToTerms(!agreeToTerms);
   const navigateToLogin = () => navigation.navigate('Login');

@@ -1,5 +1,5 @@
 // App.jsx
-import React, {useContext} from 'react'; // Import useContext
+import React, {useContext, useEffect, useState} from 'react'; // Import useContext
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 // Use MD3DarkTheme for dark mode base
@@ -19,12 +19,36 @@ import {ThemeProvider, useThemeContext} from './context/ThemeContext'; // Adjust
 import {LightTheme, DarkTheme} from './theme/theme'; // Adjust path if needed
 
 const Stack = createNativeStackNavigator();
+// Use MD3DarkTheme for dark mode base
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 
 // --- App Content Component ---
 // This component exists within the ThemeProvider's scope
 function AppContent() {
   // Get the theme mode from our context
   const {isDarkMode} = useThemeContext();
+  const [initialRouteName, setInitialRouteName] = useState('Welcome'); // Set initial route
+
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const userToken = await AsyncStorage.getItem('userToken');
+        const rememberMe = await AsyncStorage.getItem('rememberMe');
+
+        if (userToken && rememberMe === 'true') {
+          setInitialRouteName('MainApp');
+        } else {
+          setInitialRouteName('Welcome');
+        }
+      } catch (error) {
+        console.error('Error checking login status:', error);
+        // Default to Welcome screen in case of error
+        setInitialRouteName('Welcome');
+      }
+    };
+
+    checkLoginStatus();
+  }, []);
 
   // Select the appropriate theme object
   const paperTheme = isDarkMode ? DarkTheme : LightTheme;
@@ -34,7 +58,7 @@ function AppContent() {
     <PaperProvider theme={paperTheme}>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Welcome"
+          initialRouteName={initialRouteName}
           screenOptions={{
             headerShown: false,
           }}>
