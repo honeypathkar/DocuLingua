@@ -246,7 +246,7 @@ const createStyles = theme =>
       justifyContent: 'space-around',
       paddingVertical: 15,
       borderRadius: theme.roundness,
-      backgroundColor: theme.colors.secondaryContainer,
+      backgroundColor: theme.colors.primaryContainer,
       marginBottom: 15,
     }, // Changed to secondary container
     statItem: {alignItems: 'center', flex: 1},

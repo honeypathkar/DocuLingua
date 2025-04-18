@@ -101,14 +101,14 @@ export default function TranslateScreen() {
           </TouchableOpacity>
 
           {/* Document Option */}
-          <TouchableOpacity
+          {/*   <TouchableOpacity
             onPress={() => handleOptionPress('Document')}
             activeOpacity={0.7}>
             <View style={styles.optionItem}>
               <View
                 style={[
                   styles.iconContainer,
-                  {backgroundColor: '#4CAF50' /* Green */},
+                  {backgroundColor: '#4CAF50'},
                 ]}>
                 <Icon name="file-document-outline" size={24} color="#fff" />
               </View>
@@ -124,7 +124,7 @@ export default function TranslateScreen() {
                 color={theme.colors.onSurfaceDisabled}
               />
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Scan Text */}
