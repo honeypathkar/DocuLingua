@@ -32,6 +32,10 @@ const userSchema = new Schema(
         ref: "Document", // Optional: Reference to a Document model if you have one
       },
     ],
+    language: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true, // Adds createdAt and updatedAt timestamps

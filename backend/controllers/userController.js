@@ -121,23 +121,24 @@ const getUserDetails = async (req, res) => {
     res.status(200).json({ user });
   } catch (error) {
     console.error("Get User Details Error:", error);
-    res
-      .status(500)
-      .json({
-        message: "Server error fetching user details",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Server error fetching user details",
+      error: error.message,
+    });
   }
 };
 
 // --- Update User Account ---
 // Requires authentication (verifyToken middleware)
 const updateUserAccount = async (req, res) => {
+  console.log("req.body:", req.body);
+  console.log("req.files:", req.files);
   const userId = req.userId; // From verifyToken middleware
-  const { fullName, email /* other fields like userImage */ } = req.body;
+  const { fullName, email, language } = req.body;
+  const userImage = req.files?.userImage;
 
   // Basic validation
-  if (!fullName && !email /* && !other fields */) {
+  if (!fullName && !email && !userImage && !language) {
     return res.status(400).json({ message: "No update fields provided" });
   }
 
@@ -157,35 +158,53 @@ const updateUserAccount = async (req, res) => {
       }
       updateData.email = email;
     }
-    // Add other fields to updateData as needed, e.g., updateData.userImage = userImage;
+    if (language) updateData.language = language;
+
+    if (userImage) {
+      // Upload image to Cloudinary
+      const cloudinary = require("cloudinary").v2;
+      const uploadResult = await cloudinary.uploader.upload(
+        userImage.tempFilePath, // Use tempFilePath for temporary file
+        {
+          folder: "user-images", // Optional: Store images in a folder
+        }
+      );
+      updateData.userImage = uploadResult.secure_url; // Store secure URL
+    }
 
     const updatedUser = await UserModel.findByIdAndUpdate(
       userId,
       { $set: updateData },
-      { new: true, runValidators: true } // Return updated doc, run schema validators
+      { new: true, runValidators: true }
     ).select("-password"); // Exclude password from response
 
     if (!updatedUser) {
-      return res.status(404).json({ message: "User not found for update" });
+      return res.status(404).json({
+        message: "User not found for update",
+      });
     }
 
-    res
-      .status(200)
-      .json({ message: "Account updated successfully", user: updatedUser });
+    res.status(200).json({
+      message: "Account updated successfully",
+      user: updatedUser,
+    });
   } catch (error) {
     console.error("Update User Account Error:", error);
+
     // Handle potential validation errors
     if (error.name === "ValidationError") {
-      return res
-        .status(400)
-        .json({ message: "Validation failed", errors: error.errors });
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: error.errors,
+      });
     }
-    res
-      .status(500)
-      .json({ message: "Server error updating account", error: error.message });
+
+    res.status(500).json({
+      message: "Server error updating account",
+      error: error.message,
+    });
   }
 };
-
 // --- Delete User Account ---
 // Requires authentication (verifyToken middleware)
 const deleteUserAccount = async (req, res) => {
