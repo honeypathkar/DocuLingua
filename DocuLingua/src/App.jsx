@@ -27,13 +27,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage'; // Import 
 function AppContent() {
   // Get the theme mode from our context
   const {isDarkMode} = useThemeContext();
-  const [initialRouteName, setInitialRouteName] = useState('Welcome'); // Set initial route
-
+  const [initialRouteName, setInitialRouteName] = useState(null); // Set initial route
+  const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
     const checkLoginStatus = async () => {
       try {
         const userToken = await AsyncStorage.getItem('userToken');
         const rememberMe = await AsyncStorage.getItem('rememberMe');
+        console.log(userToken, rememberMe);
 
         if (userToken && rememberMe === 'true') {
           setInitialRouteName('MainApp');
@@ -44,6 +45,8 @@ function AppContent() {
         console.error('Error checking login status:', error);
         // Default to Welcome screen in case of error
         setInitialRouteName('Welcome');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -57,42 +60,44 @@ function AppContent() {
     // Apply the selected theme to PaperProvider
     <PaperProvider theme={paperTheme}>
       <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName={initialRouteName}
-          screenOptions={{
-            headerShown: false,
-          }}>
-          <Stack.Screen
-            name="Welcome"
-            component={WelcomeScreen}
-            options={{animation: 'simple_push'}}
-          />
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{animation: 'ios_from_right'}}
-          />
-          <Stack.Screen
-            name="Register"
-            component={RegisterScreen}
-            options={{animation: 'ios_from_right'}}
-          />
-          <Stack.Screen
-            name="MainApp"
-            component={BottomTabNavigator}
-            options={{animation: 'ios_from_right'}}
-          />
-          <Stack.Screen
-            name="UploadScreen"
-            component={UploadScreen}
-            options={{animation: 'ios_from_right'}}
-          />
-          <Stack.Screen
-            name="DocumentView"
-            component={DocumentViewScreen}
-            options={{animation: 'ios_from_right'}}
-          />
-        </Stack.Navigator>
+        {isLoading ? null : (
+          <Stack.Navigator
+            initialRouteName={initialRouteName}
+            screenOptions={{
+              headerShown: false,
+            }}>
+            <Stack.Screen
+              name="Welcome"
+              component={WelcomeScreen}
+              options={{animation: 'simple_push'}}
+            />
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+            <Stack.Screen
+              name="Register"
+              component={RegisterScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+            <Stack.Screen
+              name="MainApp"
+              component={BottomTabNavigator}
+              options={{animation: 'ios_from_right'}}
+            />
+            <Stack.Screen
+              name="UploadScreen"
+              component={UploadScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+            <Stack.Screen
+              name="DocumentView"
+              component={DocumentViewScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+          </Stack.Navigator>
+        )}
       </NavigationContainer>
     </PaperProvider>
   );

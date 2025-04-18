@@ -9,6 +9,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ToastAndroid,
 } from 'react-native';
 import {
   TextInput,
@@ -35,13 +36,10 @@ const LoginScreen = ({navigation}) => {
   const handleLogin = async () => {
     console.log('Login Url: ', LoginUrl);
     try {
-      const response = await axios.post(
-        'http://localhost:8001/api/users/login',
-        {
-          email: email,
-          password: password,
-        },
-      );
+      const response = await axios.post(LoginUrl, {
+        email: email,
+        password: password,
+      });
 
       if (response.status === 200) {
         const token = response.data.token;
@@ -55,11 +53,16 @@ const LoginScreen = ({navigation}) => {
       } else {
         // Handle other status codes (e.g., 401, 500)
         console.error('Login failed:', response.status, response.data);
+        ToastAndroid.show('Invalid Credentials', ToastAndroid.SHORT);
         // Display an error message to the user (e.g., using Alert)
       }
     } catch (error) {
       // Handle network errors or other exceptions
       console.error('Login error:', error);
+      ToastAndroid.show(
+        "Account with email doesn't exists",
+        ToastAndroid.SHORT,
+      );
       // Display an error message to the user
     }
   };

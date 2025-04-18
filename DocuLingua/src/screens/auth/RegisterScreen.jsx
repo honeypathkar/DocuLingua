@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  ToastAndroid,
 } from 'react-native';
 import {
   TextInput,
@@ -22,7 +23,7 @@ import {
 
 import axios from 'axios'; // Import axios
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
-import {SignupUrl} from '../../API'; // Import API endpoint
+import {SignupUrl} from '../../../API'; // Import API endpoint
 
 const RegisterScreen = ({navigation}) => {
   // State variables remain the same...
@@ -44,7 +45,8 @@ const RegisterScreen = ({navigation}) => {
     try {
       // Basic validation (you might want to improve this)
       if (password !== confirmPassword) {
-        Alert.alert('Error', 'Passwords do not match');
+        // Alert.alert('Error', 'Passwords do not match');
+        ToastAndroid.show('Password do not match', ToastAndroid.SHORT);
         return;
       }
 
@@ -58,10 +60,15 @@ const RegisterScreen = ({navigation}) => {
         const token = response.data.token;
         // Store the token in AsyncStorage
         await AsyncStorage.setItem('userToken', token);
+        ToastAndroid.show('Register Successfully.', ToastAndroid.SHORT);
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'MainApp'}],
+        });
 
-        Alert.alert('Success', 'Account created!', [
-          {text: 'OK', onPress: () => navigation.navigate('Login')}, // Navigate to Login after successful registration
-        ]);
+        // Alert.alert('Success', 'Account created!', [
+        //   {text: 'OK', onPress: () => navigation.navigate('Login')}, // Navigate to Login after successful registration
+        // ]);
       } else {
         // Handle other status codes (e.g., 400, 409, 500)
         console.error('Registration failed:', response.status, response.data);
@@ -70,7 +77,10 @@ const RegisterScreen = ({navigation}) => {
     } catch (error) {
       // Handle network errors or other exceptions
       console.error('Registration error:', error);
-      Alert.alert('Error', 'Registration error. Please check your connection.');
+      ToastAndroid.show(
+        'User Already Exists with this Email.',
+        ToastAndroid.LONG,
+      );
     }
   };
   const toggleAgreeToTerms = () => setAgreeToTerms(!agreeToTerms);

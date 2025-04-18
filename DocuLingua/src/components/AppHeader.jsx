@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {Appbar, useTheme, Searchbar, Menu} from 'react-native-paper';
 import {useNavigation} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AppHeader({showSearchIcon = false}) {
   const theme = useTheme();
@@ -115,8 +116,10 @@ export default function AppHeader({showSearchIcon = false}) {
   const openProfileMenu = () => setIsProfileMenuVisible(true);
   const closeProfileMenu = () => setIsProfileMenuVisible(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     closeProfileMenu();
+    await AsyncStorage.removeItem('userToken');
+    await AsyncStorage.removeItem('rememberMe');
     console.log('Logout pressed');
     // Reset navigation stack to Welcome screen
     // Ensure 'Welcome' matches the screen name in your root navigator (App.js)
