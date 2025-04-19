@@ -8,3 +8,4 @@ export const SignupUrl = `${BaseURL}/api/users/signup`;
 export const GetUserDetailsUrl = `${BaseURL}/api/users/me`;
 export const UpdateAccountUrl = `${BaseURL}/api/users/me`;
 export const DeleteAccountUrl = `${BaseURL}/api/users/me`;
+export const ChangePasswordUrl = `${BaseURL}/api/users/change-password`;
