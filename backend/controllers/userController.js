@@ -37,9 +37,7 @@ const signupUser = async (req, res) => {
 
     // Generate JWT token (optional: log user in immediately after signup)
     const tokenPayload = { userId: newUser._id };
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    }); // Token expires in 1 hour
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET); // Token expires in 1 hour
 
     // Respond with user info (excluding password) and token
     res.status(201).json({
@@ -84,9 +82,7 @@ const loginUser = async (req, res) => {
 
     // Generate JWT token
     const tokenPayload = { userId: user._id };
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    }); // Token expires in 1 hour
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET); // Token expires in 1 hour
 
     // Respond with token and user info (excluding password)
     res.status(200).json({

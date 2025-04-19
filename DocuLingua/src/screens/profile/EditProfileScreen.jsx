@@ -9,7 +9,8 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
-  KeyboardAvoidingView, // Added for better keyboard handling
+  KeyboardAvoidingView,
+  ToastAndroid, // Added for better keyboard handling
 } from 'react-native';
 import {
   Appbar,
@@ -129,9 +130,10 @@ const EditProfileScreen = () => {
 
   const handleUpdate = useCallback(async () => {
     if (!userToken) {
-      Alert.alert('Error', 'Authentication token is missing. Cannot update.');
+      Alert.alert('Error', 'Authentication token is missing.');
       return;
     }
+
     if (!fullName.trim()) {
       Alert.alert('Validation Error', 'Full Name cannot be empty.');
       return;
@@ -139,82 +141,50 @@ const EditProfileScreen = () => {
 
     setIsUpdating(true);
 
-    // Prepare languages array
     const languagesArray = languagesInput
       .split(',')
       .map(lang => lang.trim())
-      .filter(lang => lang); // Remove empty entries
+      .filter(Boolean);
 
-    // Construct payload based on backend expectations
-    const payload = {
-      fullName: fullName.trim(),
-      // Use singular 'language' key as requested, but send array value
-      language: languagesArray,
-    };
+    const formData = new FormData();
+    formData.append('fullName', fullName.trim());
+    // languagesArray.forEach(lang => formData.append('language[]', lang));
+    languagesArray.forEach(lang => formData.append('language', lang));
 
-    // Conditionally add userImage field ONLY if a new image was selected
     if (selectedImageResponse && selectedImageResponse.uri !== initialImage) {
-      payload.userImage = selectedImageResponse.uri;
+      formData.append('userImage', {
+        uri: selectedImageResponse.uri,
+        type: selectedImageResponse.type || 'image/jpeg',
+        name: selectedImageResponse.fileName || 'profile.jpg',
+      });
     }
-
-    console.log('Updating profile with payload:', payload);
-    console.log('Using URL:', UpdateAccountUrl);
 
     try {
-      const response = await axios.put(UpdateAccountUrl, payload, {
+      const response = await axios.put(UpdateAccountUrl, formData, {
         headers: {
           Authorization: `Bearer ${userToken}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'multipart/form-data',
         },
-        timeout: 15000, // Optional: Add a timeout (15 seconds)
+        timeout: 15000,
       });
 
-      console.log('Update successful:', response.data);
-      Alert.alert('Success', 'Profile updated successfully!');
-      // Reset selected image response so it's not sent again unless re-chosen
-      setSelectedImageResponse(null);
-      // You might want to update the initialImage state here if needed,
-      // or rely on a screen refresh/refetch after navigating back.
-      // initialImage = payload.userImage || initialImage; // Example, but potentially risky
-
-      // navigation.goBack(); // Navigate back on success
-    } catch (error) {
-      console.error('Update failed:', error);
-      let errorMessage = 'An unexpected error occurred during the update.';
-      if (error.response) {
-        // Server responded with a status code outside 2xx range
-        console.error('Error Data:', error.response.data);
-        console.error('Error Status:', error.response.status);
-        // Try to get a meaningful message from the response data
-        const serverMessage =
-          typeof error.response.data?.message === 'string'
-            ? error.response.data.message
-            : JSON.stringify(error.response.data);
-        errorMessage = `Server Error ${error.response.status}: ${
-          serverMessage || 'Failed to update profile.'
-        }`;
-      } else if (error.request) {
-        // Request was made but no response received (network error, timeout)
-        console.error('Error Request:', error.request);
-        errorMessage =
-          'Network Error: Could not connect to the server. Please check your connection.';
-      } else {
-        // Setup error or other unexpected issue
-        console.error('Error Message:', error.message);
-        errorMessage = `Error: ${error.message}`;
+      // Alert.alert('Success', 'Profile updated successfully!');
+      ToastAndroid.show('Profile Updated Successfully.', ToastAndroid.SHORT);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
       }
-      Alert.alert('Update Failed', errorMessage);
+      setSelectedImageResponse(null);
+      // navigation.goBack();
+    } catch (error) {
+      console.error('Update Error:', error);
+      Alert.alert(
+        'Update Failed',
+        error.response?.data?.message || error.message,
+      );
     } finally {
-      setIsUpdating(false); // Ensure loading state is always reset
+      setIsUpdating(false);
     }
-  }, [
-    userToken,
-    fullName,
-    languagesInput,
-    selectedImageResponse,
-    initialImage,
-    navigation,
-  ]); // Dependencies
+  }, [userToken, fullName, languagesInput, selectedImageResponse, navigation]);
 
   const handleGoBack = useCallback(() => {
     if (navigation.canGoBack()) {
