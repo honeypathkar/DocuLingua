@@ -7,6 +7,8 @@ const {
   updateUserAccount,
   deleteUserAccount,
   changePassword,
+  forgotPassword,
+  verifyOTPAndResetPassword,
 } = require("../controllers/userController");
 const verifyToken = require("../middleware/verifyToken");
 
@@ -29,5 +31,11 @@ router.delete("/me", verifyToken, deleteUserAccount);
 
 // PUT /api/users/change-password - Change password
 router.put("/change-password", changePassword);
+
+// POST /api/users/forgot-password - Forgot password
+router.post("/forgot-password", forgotPassword);
+
+// POST /api/users/verify-otp-and-reset-password - Verify OTP and reset password
+router.post("/verify-otp-and-reset-password", verifyOTPAndResetPassword);
 
 module.exports = router;

@@ -3,6 +3,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const cloudinary = require("cloudinary").v2;
+// const sendEmail = require("../middleware/sendEmail");
+const sendVerificationEmail = require("../middleware/sendEmail");
 
 // --- Signup ---
 const signupUser = async (req, res) => {
@@ -240,16 +242,12 @@ const deleteUserAccount = async (req, res) => {
   }
 };
 
-// --- Change Password ---
-const changePassword = async (req, res) => {
-  const { email, oldPassword, newPassword } = req.body;
+// --- Forgot Password ---
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
 
-  if (!email || !oldPassword || !newPassword) {
-    return res
-      .status(400)
-      .json({
-        message: "Please provide email, old password, and new password",
-      });
+  if (!email) {
+    return res.status(400).json({ message: "Please provide email" });
   }
 
   try {
@@ -259,10 +257,51 @@ const changePassword = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Compare provided old password with stored hash
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid old password" });
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000);
+
+    // Save OTP to user model (you might want to add an otp field to your UserModel)
+    user.otp = otp;
+    user.otpExpiry = Date.now() + 3600000; // OTP expires in 1 hour
+    await user.save();
+
+    // Send OTP to user's email
+    await sendVerificationEmail(email, otp);
+
+    res.status(200).json({ message: "OTP sent to email" });
+  } catch (error) {
+    console.error("Forgot Password Error:", error);
+    res.status(500).json({
+      message: "Server error during forgot password",
+      error: error.message,
+    });
+  }
+};
+
+// --- Verify OTP and Reset Password ---
+const verifyOTPAndResetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res
+      .status(400)
+      .json({ message: "Please provide email, OTP, and new password" });
+  }
+
+  try {
+    // Find user by email and OTP
+    const user = await UserModel.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.otp !== parseInt(otp)) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    if (user.otpExpiry < Date.now()) {
+      return res.status(400).json({ message: "OTP expired" });
     }
 
     // Hash the new password
@@ -271,17 +310,48 @@ const changePassword = async (req, res) => {
 
     // Update the user's password
     user.password = hashedPassword;
+    user.otp = null;
+    user.otpExpiry = null;
     await user.save();
 
+    res.status(200).json({ message: "Password reset successfully" });
+  } catch (error) {
+    console.error("Verify OTP and Reset Password Error:", error);
+    res.status(500).json({
+      message: "Server error during password reset",
+      error: error.message,
+    });
+  }
+};
+
+const changePassword = async (req, res) => {
+  const { email, oldPassword, newPassword } = req.body;
+  if (!email || !oldPassword || !newPassword) {
+    return res.status(400).json({
+      message: "Please provide email, old password, and new password",
+    });
+  }
+  try {
+    // Find user by email
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    } // Compare provided old password with stored hash
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid old password" });
+    } // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt); // Update the user's password
+    user.password = hashedPassword;
+    await user.save();
     res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
     console.error("Change Password Error:", error);
-    res
-      .status(500)
-      .json({
-        message: "Server error during password change",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Server error during password change",
+      error: error.message,
+    });
   }
 };
 
@@ -291,5 +361,8 @@ module.exports = {
   getUserDetails,
   updateUserAccount,
   deleteUserAccount,
+  changePassword,
+  forgotPassword,
+  verifyOTPAndResetPassword,
   changePassword,
 };

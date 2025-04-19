@@ -40,6 +40,14 @@ const userSchema = new Schema(
       type: [String],
       default: [],
     },
+    otp: {
+      type: Number,
+      required: false,
+    },
+    otpExpiry: {
+      type: Date,
+      required: false,
+    },
   },
   {
     timestamps: true, // Adds createdAt and updatedAt timestamps
