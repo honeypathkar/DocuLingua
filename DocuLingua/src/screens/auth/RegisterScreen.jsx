@@ -1,5 +1,5 @@
 // screens/auth/RegisterScreen.jsx
-import React, {useState, useMemo} from 'react'; // Import useMemo
+import React, {useState, useMemo} from 'react';
 import {
   StyleSheet,
   View,
@@ -9,7 +9,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
+  Alert, // Keep Alert for potential non-Android feedback
   ToastAndroid,
 } from 'react-native';
 import {
@@ -18,73 +18,138 @@ import {
   Text,
   Checkbox,
   useTheme,
-  Appbar, // Already imported useTheme
+  Appbar,
 } from 'react-native-paper';
 
-import axios from 'axios'; // Import axios
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SignupUrl} from '../../../API'; // Import API endpoint
 
 const RegisterScreen = ({navigation}) => {
-  // State variables remain the same...
+  // --- State ---
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  // const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
+  const [loading, setLoading] = useState(false); // <-- Add loading state
 
-  const theme = useTheme(); // Already called
-  // Create styles inside, dependent on theme
+  const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // Functions remain the same...
+  // --- Functions ---
   const handleRegister = async () => {
-    try {
-      // Basic validation (you might want to improve this)
-      if (password !== confirmPassword) {
-        // Alert.alert('Error', 'Passwords do not match');
-        ToastAndroid.show('Password do not match', ToastAndroid.SHORT);
-        return;
-      }
-
-      const response = await axios.post(SignupUrl, {
-        fullName: `${firstName} ${lastName}`,
-        email: email,
-        password: password,
-      });
-
-      if (response.status === 201) {
-        const token = response.data.token;
-        // Store the token in AsyncStorage
-        await AsyncStorage.setItem('userToken', token);
-        ToastAndroid.show('Register Successfully.', ToastAndroid.SHORT);
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'MainApp'}],
-        });
-
-        // Alert.alert('Success', 'Account created!', [
-        //   {text: 'OK', onPress: () => navigation.navigate('Login')}, // Navigate to Login after successful registration
-        // ]);
+    // --- Basic Validation ---
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim() ||
+      !password ||
+      !confirmPassword
+    ) {
+      // Alert.alert('Validation Error', 'Please fill in all fields.');
+      ToastAndroid.show('Please fill in all fields.', ToastAndroid.SHORT);
+      return;
+    }
+    if (password !== confirmPassword) {
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Passwords do not match', ToastAndroid.SHORT);
       } else {
-        // Handle other status codes (e.g., 400, 409, 500)
-        console.error('Registration failed:', response.status, response.data);
-        Alert.alert('Error', 'Registration failed. Please try again.');
+        Alert.alert('Error', 'Passwords do not match');
+      }
+      return;
+    }
+    // if (!agreeToTerms) {
+    //   Alert.alert(
+    //     'Terms Required',
+    //     'Please agree to the Terms of Service and Privacy Policy.',
+    //   );
+    //   return;
+    // }
+    // --- End Validation ---
+
+    setLoading(true); // <-- Set loading true
+    try {
+      console.log('Registering with URL:', SignupUrl);
+      const response = await axios.post(
+        SignupUrl,
+        {
+          fullName: `${firstName.trim()} ${lastName.trim()}`, // Trim names
+          email: email.trim(), // Trim email
+          password: password, // Password likely shouldn't be trimmed
+        },
+        {timeout: 10000},
+      );
+
+      if (response.status === 201 && response.data?.token) {
+        // Check for 201 Created and token
+        const token = response.data.token;
+        await AsyncStorage.setItem('userToken', token);
+        // No need to store rememberMe on register usually
+        // await AsyncStorage.setItem('rememberMe', 'false'); // Default to not remember
+
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Registration Successful!', ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Success', 'Account created!');
+        }
+
+        // Replace stack with MainApp so user can't go back to Register/Login easily
+        navigation.reset({index: 0, routes: [{name: 'MainApp'}]});
+      } else {
+        // Handle cases where API returns success status but indicates failure logically
+        const errorMessage =
+          response.data?.message || 'Registration failed. Please try again.';
+        console.error(
+          'Registration failed (API Logic):',
+          response.status,
+          response.data,
+        );
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(errorMessage, ToastAndroid.SHORT);
+        } else {
+          Alert.alert('Registration Failed', errorMessage);
+        }
       }
     } catch (error) {
-      // Handle network errors or other exceptions
       console.error('Registration error:', error);
-      ToastAndroid.show(
-        'User Already Exists with this Email.',
-        ToastAndroid.LONG,
-      );
+      let errorMessage = 'An error occurred during registration.';
+      if (error.response) {
+        // Handle specific errors like 409 Conflict (User exists)
+        if (error.response.status === 409) {
+          errorMessage =
+            error.response.data?.message ||
+            'An account with this email already exists.';
+        } else {
+          errorMessage =
+            error.response.data?.message ||
+            `Registration failed (Status: ${error.response.status})`;
+        }
+      } else if (error.request) {
+        errorMessage = 'Network error. Please check your connection.';
+      } else {
+        errorMessage = error.message;
+      }
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(errorMessage, ToastAndroid.LONG);
+      } else {
+        Alert.alert('Registration Failed', errorMessage);
+      }
+    } finally {
+      setLoading(false); // <-- Set loading false in finally
     }
   };
+
   const toggleAgreeToTerms = () => setAgreeToTerms(!agreeToTerms);
-  const navigateToLogin = () => navigation.navigate('Login');
+  const navigateToLogin = () => {
+    if (!loading) {
+      // Prevent navigation while loading
+      navigation.navigate('Login');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -94,7 +159,6 @@ const RegisterScreen = ({navigation}) => {
           source={require('../../assets/images/logo.png')}
           style={styles.appIconSmall}
         />
-        {/* Apply theme colors */}
         <Text style={[styles.appBarTitle, {color: theme.colors.onSurface}]}>
           <Text style={{color: theme.colors.primary}}>Docu</Text>Lingua
         </Text>
@@ -110,14 +174,13 @@ const RegisterScreen = ({navigation}) => {
           showsVerticalScrollIndicator={false}>
           <View style={styles.formContainer}>
             <View style={styles.formContent}>
-              {/* Apply theme text color */}
               <Text
                 variant="headlineMedium"
                 style={[styles.pageTitle, {color: theme.colors.onBackground}]}>
                 Create Account
               </Text>
 
-              {/* Form Fields... Apply theme colors */}
+              {/* Form Fields... Disable while loading */}
               <View style={styles.nameRow}>
                 <TextInput
                   label="First Name"
@@ -126,6 +189,7 @@ const RegisterScreen = ({navigation}) => {
                   mode="outlined"
                   style={styles.nameInput}
                   autoCapitalize="words"
+                  disabled={loading} // <-- Disable
                 />
                 <TextInput
                   label="Last Name"
@@ -134,6 +198,7 @@ const RegisterScreen = ({navigation}) => {
                   mode="outlined"
                   style={styles.nameInput}
                   autoCapitalize="words"
+                  disabled={loading} // <-- Disable
                 />
               </View>
               <TextInput
@@ -144,12 +209,13 @@ const RegisterScreen = ({navigation}) => {
                 style={styles.input}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                disabled={loading} // <-- Disable
                 left={
                   <TextInput.Icon
                     icon="email-outline"
                     color={theme.colors.onSurfaceVariant}
                   />
-                } // Themed icon
+                }
               />
               <TextInput
                 label="Password"
@@ -159,19 +225,20 @@ const RegisterScreen = ({navigation}) => {
                 style={styles.input}
                 secureTextEntry={!passwordVisible}
                 autoCapitalize="none"
+                disabled={loading} // <-- Disable
                 left={
                   <TextInput.Icon
                     icon="lock-outline"
                     color={theme.colors.onSurfaceVariant}
                   />
-                } // Themed icon
+                }
                 right={
                   <TextInput.Icon
                     icon={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
                     onPress={() => setPasswordVisible(!passwordVisible)}
                     color={theme.colors.onSurfaceVariant}
                   />
-                } // Themed icon
+                }
               />
               <TextInput
                 label="Confirm Password"
@@ -181,12 +248,13 @@ const RegisterScreen = ({navigation}) => {
                 style={styles.input}
                 secureTextEntry={!confirmPasswordVisible}
                 autoCapitalize="none"
+                disabled={loading} // <-- Disable
                 left={
                   <TextInput.Icon
                     icon="lock-check-outline"
                     color={theme.colors.onSurfaceVariant}
                   />
-                } // Themed icon
+                }
                 right={
                   <TextInput.Icon
                     icon={
@@ -197,20 +265,21 @@ const RegisterScreen = ({navigation}) => {
                     }
                     color={theme.colors.onSurfaceVariant}
                   />
-                } // Themed icon
+                }
               />
 
-              {/* Terms Checkbox... */}
-              <View style={styles.checkboxRow}>
+              {/* Terms Checkbox... Disable while loading */}
+              {/* <View style={styles.checkboxRow}>
                 <TouchableOpacity
                   style={styles.checkboxContainer}
                   onPress={toggleAgreeToTerms}
+                  disabled={loading} // <-- Disable
                   activeOpacity={0.7}>
                   <Checkbox
                     status={agreeToTerms ? 'checked' : 'unchecked'}
                     onPress={toggleAgreeToTerms}
+                    disabled={loading} // <-- Disable
                   />
-                  {/* Apply theme text color */}
                   <Text
                     variant="bodySmall"
                     style={[
@@ -220,29 +289,31 @@ const RegisterScreen = ({navigation}) => {
                     I agree to the Terms of Service and Privacy Policy
                   </Text>
                 </TouchableOpacity>
-              </View>
+              </View> */}
 
-              {/* Register Button... */}
+              {/* --- Updated Register Button --- */}
               <Button
                 mode="contained"
                 onPress={handleRegister}
                 style={styles.registerButton}
                 labelStyle={styles.registerButtonText}
-                buttonColor={theme.colors.primary} // Use theme color
-                // textColor={theme.colors.onPrimary} // Usually automatic
+                buttonColor={theme.colors.primary}
+                loading={loading} // <-- Add loading prop
+                disabled={loading} // <-- Disable if loading OR terms not agreed
               >
+                {/* Text automatically handled by loading prop */}
                 Create Account
               </Button>
+              {/* --- End Updated Button --- */}
 
-              {/* Login Link... */}
+              {/* Login Link... Disable while loading */}
               <View style={styles.loginLinkContainer}>
-                {/* Apply theme text color */}
                 <Text
                   variant="bodyMedium"
                   style={{color: theme.colors.onSurface}}>
                   Already have an account?{' '}
                 </Text>
-                <TouchableOpacity onPress={navigateToLogin}>
+                <TouchableOpacity onPress={navigateToLogin} disabled={loading}>
                   <Text
                     variant="bodyMedium"
                     style={[
@@ -264,48 +335,45 @@ const RegisterScreen = ({navigation}) => {
 // Function to create styles based on theme
 const createStyles = theme =>
   StyleSheet.create({
-    safeArea: {flex: 1, backgroundColor: theme.colors.background}, // Theme background
-    appBar: {backgroundColor: theme.colors.surface, paddingHorizontal: 10}, // Theme surface
+    safeArea: {flex: 1, backgroundColor: theme.colors.background},
+    appBar: {backgroundColor: theme.colors.surface, paddingHorizontal: 10},
     appIconSmall: {width: 32, height: 32, marginRight: 10},
-    appBarTitle: {
-      fontSize: 22,
-      fontWeight: 'bold' /* color: theme.colors.onSurface */,
-    }, // Color applied inline
+    appBarTitle: {fontSize: 22, fontWeight: 'bold'},
     keyboardAvoiding: {flex: 1},
     scrollViewContent: {
       flexGrow: 1,
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 10,
-      paddingBottom: 20,
+      paddingVertical: 20, // Added vertical padding
     },
-    formContainer: {width: '95%', maxWidth: 400},
+    formContainer: {width: '90%', maxWidth: 400}, // Use percentage width
     formContent: {
       alignItems: 'center',
       paddingHorizontal: 15,
       paddingVertical: 30,
     },
-    pageTitle: {marginBottom: 20}, // Color applied inline
+    pageTitle: {marginBottom: 25, fontWeight: '600'}, // Adjusted margin & weight
     nameRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       width: '100%',
       marginBottom: 15,
     },
-    nameInput: {width: '48%'},
+    nameInput: {width: '48%'}, // Ensure names fit
     input: {width: '100%', marginBottom: 15},
     checkboxRow: {width: '100%', marginTop: 5, marginBottom: 20},
     checkboxContainer: {flexDirection: 'row', alignItems: 'center'},
-    checkboxLabel: {marginLeft: 2, flexShrink: 1, lineHeight: 16}, // Color applied inline
-    registerButton: {width: '100%', paddingVertical: 5, marginTop: 10},
+    checkboxLabel: {marginLeft: 4, flexShrink: 1, lineHeight: 16},
+    registerButton: {width: '100%', paddingVertical: 6, marginTop: 10}, // Adjusted padding
     registerButtonText: {fontSize: 16, fontWeight: 'bold'},
     loginLinkContainer: {
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
-      marginTop: 25,
+      marginTop: 30, // Increased margin
     },
-    loginLinkText: {fontWeight: 'bold'}, // Color applied inline
+    loginLinkText: {fontWeight: 'bold'},
   });
 
 export default RegisterScreen;

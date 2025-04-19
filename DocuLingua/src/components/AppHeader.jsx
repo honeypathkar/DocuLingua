@@ -80,7 +80,7 @@ export default function AppHeader({showSearchIcon = false}) {
           marginHorizontal: 5,
           backgroundColor: theme.colors.primaryContainer,
         },
-        searchInput: {fontSize: 16 /* Adjusted */},
+        searchInput: {fontSize: 16 /* Adjusted */, paddingBottom: 20},
         menuItemTitle: {fontSize: 16},
         menuItemDisabledTitle: {
           fontSize: 16,

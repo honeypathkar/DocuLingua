@@ -38,6 +38,7 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import AppHeader from '../../components/AppHeader'; // Adjust path if needed
 import {useThemeContext} from '../../context/ThemeContext'; // Adjust path if needed
 import useUserDetails from '../../hooks/useUserDetails';
+import {DeleteAccountUrl} from '../../../API';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -276,9 +277,8 @@ export default function ProfileScreen() {
       });
       if (response.status === 200 || response.status === 204) {
         /* ... handle success ... */ setIsModalVisible(false);
-        Alert.alert('Success', 'Account deleted.', [
-          {text: 'OK', onPress: handleLogout},
-        ]);
+        ToastAndroid.show('Account Deleted Successfully.', ToastAndroid.SHORT);
+        handleLogout();
       } else {
         /* ... handle unexpected success status ... */
       }
