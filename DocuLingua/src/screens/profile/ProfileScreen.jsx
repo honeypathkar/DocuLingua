@@ -37,7 +37,7 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 
 import AppHeader from '../../components/AppHeader'; // Adjust path if needed
 import {useThemeContext} from '../../context/ThemeContext'; // Adjust path if needed
-import {GetUserDetailsUrl, DeleteAccountUrl} from '../../../API'; // Adjust path if needed
+import useUserDetails from '../../hooks/useUserDetails';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -172,112 +172,72 @@ export default function ProfileScreen() {
   const paperTheme = useTheme();
   const styles = useMemo(() => createStyles(paperTheme), [paperTheme]);
   const navigation = useNavigation();
+  const {user, loading, error, fetchDetails} = useUserDetails(); // <-- Get state and function from hook
 
   // State variables... (user, loading, refreshing, etc.)
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Initially true
+  // const [user, setUser] = useState(null);
+  // const [loading, setLoading] = useState(true); // Initially true
   const [refreshing, setRefreshing] = useState(false);
   const {isDarkMode, toggleDarkMode} = useThemeContext();
   const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false); // Needs API integration if real
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // --- Data Fetching --- (Now inside useCallback for useFocusEffect)
-  const fetchUserDetails = useCallback(
-    async (showLoadingIndicator = true) => {
-      if (showLoadingIndicator) {
-        setLoading(true); // Show skeleton only if needed (e.g., not for pull-to-refresh)
-      }
-      let userToken = null;
-      try {
-        userToken = await AsyncStorage.getItem('userToken');
-        if (!userToken) {
-          console.log('No user token found for fetching details.');
-          // Navigate to login, do not show error alert here as focus effect might trigger often
-          navigation.replace('Welcome', {screen: 'Login'}); // Adjust as needed
-          setLoading(false);
-          setRefreshing(false);
-          return;
-        }
-        console.log(
-          'Fetching details from URL (ProfileScreen):',
-          GetUserDetailsUrl,
+  // --- Effect to Handle Errors from the Hook ---
+  useEffect(() => {
+    if (error) {
+      console.error('Error received from useUserDetails hook:', error);
+      // Handle AUTH errors specifically by logging out and redirecting
+      if (error.type === 'AUTH') {
+        Alert.alert(
+          error.message || 'Authentication Error',
+          'Please log in again.',
+          [
+            {
+              text: 'OK',
+              onPress: async () => {
+                await AsyncStorage.removeItem('userToken'); // Ensure token is cleared
+                navigation.replace('Welcome', {screen: 'Login'}); // Adjust target as needed
+              },
+            },
+          ],
         );
-        const response = await axios.get(GetUserDetailsUrl, {
-          headers: {Authorization: `Bearer ${userToken}`},
-          timeout: 10000, // Add timeout
-        });
-
-        const userData = response.data.user || response.data; // Adjust based on your API response structure
-        if (userData && typeof userData === 'object') {
-          setUser(userData);
-          // Optionally update 2FA state if API provides it
-          // setIsTwoFactorEnabled(userData.isTwoFactorEnabled || false);
-        } else {
-          console.error('User data format error:', response.data);
-          if (!refreshing) {
-            // Avoid alert spamming on refresh/focus loops
-            Alert.alert('Data Error', 'Received invalid user data format.');
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching user details:', error);
-        // Avoid showing alerts on every focus if there's a persistent error,
-        // especially for network errors or auth errors handled by redirect.
-        if (!refreshing) {
-          // Show alerts mainly on non-refresh fetches
-          if (
-            error.response &&
-            (error.response.status === 401 || error.response.status === 403)
-          ) {
-            console.log('Authentication failed on fetch, logging out.');
-            await AsyncStorage.removeItem('userToken');
-            navigation.replace('Welcome', {screen: 'Login'}); // Navigate to login
-          } else if (error.response) {
-            Alert.alert(
-              'Server Error',
-              `Failed to load details (Code: ${error.response.status}).`,
-            );
-          } else if (error.request) {
-            Alert.alert('Network Error', 'Could not connect to the server.');
-          } else {
-            Alert.alert(
-              'Error',
-              'An unexpected error occurred while fetching details.',
-            );
-          }
-        } else {
-          console.log('Refresh failed silently due to error:', error.message);
-          // Optionally show a toast for refresh failures
-        }
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      } else {
+        // Show a generic alert for other error types (NETWORK, SERVER, DATA_FORMAT, UNKNOWN)
+        // Avoid alerting repeatedly if the screen stays focused with an error
+        // You might want more sophisticated error display (e.g., a banner)
+        Alert.alert(
+          'Error Loading Profile',
+          error.message || 'Could not load data.',
+        );
       }
-    },
-    [navigation, refreshing],
-  ); // Add refreshing dependency
+      // The error state in the hook will be cleared on the next fetch attempt
+    }
+  }, [error, navigation]);
 
-  // --- Fetch data when screen comes into focus ---
+  // --- Fetch data when screen comes into focus using the hook's function ---
   useFocusEffect(
     useCallback(() => {
-      console.log('Profile Screen focused, fetching details...');
-      fetchUserDetails(true); // Pass true to show loading indicator on focus
+      console.log('Profile Screen focused, calling fetchDetails...');
+      // Fetch details but don't necessarily show skeleton if user data already exists briefly
+      fetchDetails();
 
-      // Optional: Cleanup function (runs when screen loses focus)
       return () => {
         console.log('Profile Screen unfocused');
-        // You could cancel ongoing fetches here if needed
       };
-    }, [fetchUserDetails]), // Dependency array includes fetchUserDetails
+    }, [fetchDetails]), // Dependency is the stable fetchDetails function from the hook
   );
 
-  // --- Refresh Handler --- (Calls fetchUserDetails without skeleton)
-  const onRefresh = useCallback(() => {
+  // --- Refresh Handler ---
+  const onRefresh = useCallback(async () => {
     console.log('Pull-to-refresh triggered');
     setRefreshing(true);
-    fetchUserDetails(false); // Pass false to avoid showing skeleton on manual refresh
-  }, [fetchUserDetails]);
+    try {
+      await fetchDetails(); // Re-fetch data using the hook's function
+    } finally {
+      setRefreshing(false); // Ensure refreshing state is always reset
+    }
+  }, [fetchDetails]); // Dependency is the stable fetchDetails function
 
   // --- Other Handlers (handleLogout, handleEditProfile, delete logic) --- (remain the same)
   const handleLogout = useCallback(async () => {
@@ -396,11 +356,11 @@ export default function ProfileScreen() {
                   </Text>
                   <Caption>Documents</Caption>
                 </View>
-                <Divider style={styles.statsDivider} />
+                {/* <Divider style={styles.statsDivider} />
                 <View style={styles.statItem}>
                   <Text variant="titleMedium">{user.translations ?? 0}</Text>
                   <Caption>Translations</Caption>
-                </View>
+                </View> */}
                 <Divider style={styles.statsDivider} />
                 <View style={styles.statItem}>
                   <Text variant="titleMedium">
@@ -540,7 +500,9 @@ export default function ProfileScreen() {
                 {color: paperTheme.colors.onSurface},
               ]}>
               {' '}
-              Are you absolutely sure...?{' '}
+              Are you absolutely sure you want to permanently delete your
+              account? All associated data will be lost. This action cannot be
+              undone.
             </Paragraph>
             <View style={styles.modalActions}>
               <Button
@@ -594,7 +556,7 @@ const createStyles = theme =>
       top: 10,
       right: 10,
       zIndex: 1,
-      backgroundColor: theme.colors.surfaceVariant,
+      backgroundColor: theme.colors.primaryContainer,
     },
     profileImage: {
       width: 100,
@@ -617,7 +579,7 @@ const createStyles = theme =>
       alignItems: 'center',
       paddingVertical: 15,
       borderRadius: theme.roundness * 2,
-      backgroundColor: theme.colors.surfaceVariant,
+      backgroundColor: theme.colors.primaryContainer,
       marginBottom: 20,
       elevation: 1,
     },

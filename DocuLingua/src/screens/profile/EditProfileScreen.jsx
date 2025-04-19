@@ -242,7 +242,7 @@ const EditProfileScreen = () => {
         />
 
         {/* --- Email Input (Disabled) --- */}
-        <TextInput
+        {/* <TextInput
           label="Email"
           value={email}
           mode="outlined"
@@ -250,7 +250,7 @@ const EditProfileScreen = () => {
           disabled // Email is not editable
           keyboardType="email-address"
           autoCapitalize="none"
-        />
+        /> */}
 
         {/* --- Languages Input --- */}
         <TextInput
@@ -268,15 +268,17 @@ const EditProfileScreen = () => {
         </HelperText>
 
         {/* --- Update Button --- */}
-        <Button
-          mode="contained"
-          onPress={handleUpdate}
-          style={styles.button}
-          icon="check-circle"
-          disabled={isUpdating}
-          loading={isUpdating}>
-          {isUpdating ? 'Updating...' : 'Update Profile'}
-        </Button>
+        <View style={styles.bottomButtonContainer}>
+          <Button
+            mode="contained"
+            onPress={handleUpdate}
+            style={styles.button} // Use general button style if needed
+            icon="check-circle"
+            disabled={isUpdating}
+            loading={isUpdating}>
+            {isUpdating ? 'Updating...' : 'Update Profile'}
+          </Button>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -327,10 +329,21 @@ const createStyles = theme =>
       marginBottom: 10,
       paddingLeft: 0, // Adjust if needed based on TextInput style
     },
+    bottomButtonContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      paddingHorizontal: 20, // Match scrollview horizontal padding
+      paddingBottom: Platform.OS === 'ios' ? 30 : 20, // Padding below the button (adjust for safe areas if needed)
+      paddingTop: 10, // Padding above the button
+      backgroundColor: theme.colors.background, // Match background to avoid transparency issues
+      borderTopWidth: StyleSheet.hairlineWidth, // Optional: add a subtle top border
+      borderTopColor: theme.colors.outlineVariant, // Optional: border color
+    },
+    // General button style (can potentially remove width: '100%' if container handles it)
     button: {
-      width: '100%',
-      marginTop: 20,
-      paddingVertical: 6,
+      paddingVertical: 8, // Slightly more padding
     },
   });
 
