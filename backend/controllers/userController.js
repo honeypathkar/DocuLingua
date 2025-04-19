@@ -2,6 +2,7 @@ const UserModel = require("../models/UserModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const cloudinary = require("cloudinary").v2;
 
 // --- Signup ---
 const signupUser = async (req, res) => {
@@ -133,22 +134,22 @@ const getUserDetails = async (req, res) => {
 const updateUserAccount = async (req, res) => {
   console.log("req.body:", req.body);
   console.log("req.files:", req.files);
-  const userId = req.userId; // From verifyToken middleware
+  const userId = req.userId;
   const { fullName, email, language } = req.body;
   const userImage = req.files?.userImage;
 
-  // Basic validation
   if (!fullName && !email && !userImage && !language) {
     return res.status(400).json({ message: "No update fields provided" });
   }
 
   try {
     const updateData = {};
+
     if (fullName) updateData.fullName = fullName;
+
     if (email) {
-      // Optional: Check if the new email is already taken by another user
       const existingUser = await UserModel.findOne({
-        email: email,
+        email,
         _id: { $ne: userId },
       });
       if (existingUser) {
@@ -158,30 +159,44 @@ const updateUserAccount = async (req, res) => {
       }
       updateData.email = email;
     }
+
     if (language) updateData.language = language;
 
     if (userImage) {
-      // Upload image to Cloudinary
-      const cloudinary = require("cloudinary").v2;
+      // Fetch existing user to get old image public_id
+      const existingUserData = await UserModel.findById(userId);
+
+      // Delete old image from Cloudinary if it exists
+      const oldImagePublicId = existingUserData?.userImagePublicId;
+      if (oldImagePublicId) {
+        await cloudinary.uploader.destroy(oldImagePublicId);
+      }
+
+      // Upload new image
       const uploadResult = await cloudinary.uploader.upload(
-        userImage.tempFilePath, // Use tempFilePath for temporary file
+        userImage.tempFilePath,
         {
-          folder: "user-images", // Optional: Store images in a folder
+          folder: "user-images",
+          quality: "30", // Low quality setting
+          fetch_format: "auto", // Convert to modern formats
+          width: 400,
+          height: 400,
+          crop: "limit",
         }
       );
-      updateData.userImage = uploadResult.secure_url; // Store secure URL
+
+      updateData.userImage = uploadResult.secure_url;
+      updateData.userImagePublicId = uploadResult.public_id;
     }
 
     const updatedUser = await UserModel.findByIdAndUpdate(
       userId,
       { $set: updateData },
       { new: true, runValidators: true }
-    ).select("-password"); // Exclude password from response
+    ).select("-password");
 
     if (!updatedUser) {
-      return res.status(404).json({
-        message: "User not found for update",
-      });
+      return res.status(404).json({ message: "User not found for update" });
     }
 
     res.status(200).json({
@@ -191,7 +206,6 @@ const updateUserAccount = async (req, res) => {
   } catch (error) {
     console.error("Update User Account Error:", error);
 
-    // Handle potential validation errors
     if (error.name === "ValidationError") {
       return res.status(400).json({
         message: "Validation failed",
@@ -205,6 +219,7 @@ const updateUserAccount = async (req, res) => {
     });
   }
 };
+
 // --- Delete User Account ---
 // Requires authentication (verifyToken middleware)
 const deleteUserAccount = async (req, res) => {

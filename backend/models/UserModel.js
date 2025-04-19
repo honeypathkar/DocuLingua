@@ -26,6 +26,10 @@ const userSchema = new Schema(
       type: String, // Store image as Base64 string or URL
       required: false, // Or true, depending on your requirement
     },
+    userImagePublicId: {
+      type: String,
+      required: false,
+    },
     documents: [
       {
         type: Schema.Types.ObjectId,

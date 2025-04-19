@@ -21,6 +21,7 @@ import {LightTheme, DarkTheme} from './theme/theme'; // Adjust path if needed
 const Stack = createNativeStackNavigator();
 // Use MD3DarkTheme for dark mode base
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
+import EditProfileScreen from './screens/profile/EditProfileScreen';
 
 // --- App Content Component ---
 // This component exists within the ThemeProvider's scope
@@ -94,6 +95,11 @@ function AppContent() {
             <Stack.Screen
               name="DocumentView"
               component={DocumentViewScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
               options={{animation: 'ios_from_right'}}
             />
           </Stack.Navigator>

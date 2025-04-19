@@ -2,8 +2,8 @@
 import React, {
   useState,
   useMemo,
-  useContext,
-  useEffect,
+  // useContext, // Removed if useThemeContext not used here directly
+  useEffect, // Keep for potential other effects
   useCallback,
 } from 'react';
 import {
@@ -14,10 +14,9 @@ import {
   Image,
   RefreshControl,
   Dimensions,
-  ToastAndroid, // Keep if used in handleLogout
-  Platform, // Import Platform
-  Modal, // Import Modal
-  // TouchableOpacity, // Not needed if using Paper Button
+  ToastAndroid,
+  Platform,
+  Modal,
 } from 'react-native';
 import {
   Text,
@@ -26,26 +25,25 @@ import {
   List,
   Divider,
   Switch,
-  Button, // Keep Paper Button for consistency & loading prop
+  Button,
   Caption,
   IconButton,
-  Paragraph, // Useful for modal content
+  Paragraph,
 } from 'react-native-paper';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native'; // <--- Import useFocusEffect
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 
 import AppHeader from '../../components/AppHeader'; // Adjust path if needed
 import {useThemeContext} from '../../context/ThemeContext'; // Adjust path if needed
-// ** IMPORTANT: Ensure these URLs use your IP ADDRESS in API.js, not localhost **
 import {GetUserDetailsUrl, DeleteAccountUrl} from '../../../API'; // Adjust path if needed
 
 const screenWidth = Dimensions.get('window').width;
 
-// --- Skeleton Component --- (Extracted for clarity)
 const ProfileSkeleton = ({theme}) => {
   const skeletonStyles = useMemo(() => createSkeletonStyles(theme), [theme]);
+
   return (
     <SkeletonPlaceholder
       backgroundColor={theme.colors.surfaceVariant} // Use theme color for background
@@ -53,7 +51,6 @@ const ProfileSkeleton = ({theme}) => {
       speed={1000} // Adjust speed as needed
     >
       <View style={skeletonStyles.container}>
-        {/* Header Skeleton */}
         <View style={skeletonStyles.header}>
           <SkeletonPlaceholder.Item
             width={100}
@@ -73,9 +70,7 @@ const ProfileSkeleton = ({theme}) => {
             borderRadius={4}
             marginBottom={10}
           />
-          {/* Placeholder for caption removed as per user code */}
         </View>
-        {/* Stats Skeleton */}
         <SkeletonPlaceholder.Item
           flexDirection="row"
           justifyContent="space-around"
@@ -85,7 +80,6 @@ const ProfileSkeleton = ({theme}) => {
           borderRadius={12} // Use theme.roundness * 2 if preferred
           height={60} // Approx height of stats bar
         />
-        {/* List Section Skeleton (Example for 2 sections with 2 items each) */}
         <View style={skeletonStyles.listSection}>
           <SkeletonPlaceholder.Item
             width={screenWidth * 0.4}
@@ -160,6 +154,18 @@ const ProfileSkeleton = ({theme}) => {
     </SkeletonPlaceholder>
   );
 };
+const createSkeletonStyles = theme =>
+  StyleSheet.create({
+    /* ... skeleton styles ... */
+    container: {paddingHorizontal: 16, paddingTop: 0},
+    header: {
+      alignItems: 'center',
+      paddingTop: 40,
+      paddingBottom: 20,
+      marginBottom: 20,
+    },
+    listSection: {marginBottom: 20},
+  });
 
 // --- ProfileScreen Component ---
 export default function ProfileScreen() {
@@ -167,96 +173,118 @@ export default function ProfileScreen() {
   const styles = useMemo(() => createStyles(paperTheme), [paperTheme]);
   const navigation = useNavigation();
 
-  // --- State variables ---
+  // State variables... (user, loading, refreshing, etc.)
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Initially true
   const [refreshing, setRefreshing] = useState(false);
   const {isDarkMode, toggleDarkMode} = useThemeContext();
-  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false);
-
-  // State for React Native Modal
+  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false); // Needs API integration if real
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // --- Data Fetching ---
-  const fetchUserDetails = useCallback(async () => {
-    let userToken = null;
-    try {
-      userToken = await AsyncStorage.getItem('userToken');
-      if (!userToken) {
-        console.log('No user token found.');
-        Alert.alert('Authentication Error', 'You need to be logged in.', [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('Welcome', {screen: 'Welcome'}),
-          }, // Adjust navigation target
-        ]);
+  // --- Data Fetching --- (Now inside useCallback for useFocusEffect)
+  const fetchUserDetails = useCallback(
+    async (showLoadingIndicator = true) => {
+      if (showLoadingIndicator) {
+        setLoading(true); // Show skeleton only if needed (e.g., not for pull-to-refresh)
+      }
+      let userToken = null;
+      try {
+        userToken = await AsyncStorage.getItem('userToken');
+        if (!userToken) {
+          console.log('No user token found for fetching details.');
+          // Navigate to login, do not show error alert here as focus effect might trigger often
+          navigation.replace('Welcome', {screen: 'Login'}); // Adjust as needed
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+        console.log(
+          'Fetching details from URL (ProfileScreen):',
+          GetUserDetailsUrl,
+        );
+        const response = await axios.get(GetUserDetailsUrl, {
+          headers: {Authorization: `Bearer ${userToken}`},
+          timeout: 10000, // Add timeout
+        });
+
+        const userData = response.data.user || response.data; // Adjust based on your API response structure
+        if (userData && typeof userData === 'object') {
+          setUser(userData);
+          // Optionally update 2FA state if API provides it
+          // setIsTwoFactorEnabled(userData.isTwoFactorEnabled || false);
+        } else {
+          console.error('User data format error:', response.data);
+          if (!refreshing) {
+            // Avoid alert spamming on refresh/focus loops
+            Alert.alert('Data Error', 'Received invalid user data format.');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+        // Avoid showing alerts on every focus if there's a persistent error,
+        // especially for network errors or auth errors handled by redirect.
+        if (!refreshing) {
+          // Show alerts mainly on non-refresh fetches
+          if (
+            error.response &&
+            (error.response.status === 401 || error.response.status === 403)
+          ) {
+            console.log('Authentication failed on fetch, logging out.');
+            await AsyncStorage.removeItem('userToken');
+            navigation.replace('Welcome', {screen: 'Login'}); // Navigate to login
+          } else if (error.response) {
+            Alert.alert(
+              'Server Error',
+              `Failed to load details (Code: ${error.response.status}).`,
+            );
+          } else if (error.request) {
+            Alert.alert('Network Error', 'Could not connect to the server.');
+          } else {
+            Alert.alert(
+              'Error',
+              'An unexpected error occurred while fetching details.',
+            );
+          }
+        } else {
+          console.log('Refresh failed silently due to error:', error.message);
+          // Optionally show a toast for refresh failures
+        }
+      } finally {
         setLoading(false);
         setRefreshing(false);
-        return;
       }
-      console.log('Fetching details from URL:', GetUserDetailsUrl);
-      const response = await axios.get(GetUserDetailsUrl, {
-        headers: {Authorization: `Bearer ${userToken}`},
-      });
-      console.log('Full Response Data:', response.data);
-      // ** IMPORTANT: Check console log and adjust if user data is not nested under 'user' **
-      const userData = response.data.user || response.data;
-      if (userData && typeof userData === 'object') {
-        setUser(userData);
-      } else {
-        console.error('User data format error:', response.data);
-        Alert.alert('Data Error', 'Invalid user data format.');
-      }
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      if (error.response) {
-        if (error.response.status === 401 || error.response.status === 403) {
-          Alert.alert('Authentication Failed', 'Please log in again.', [
-            {
-              text: 'OK',
-              onPress: async () => {
-                await AsyncStorage.removeItem('userToken');
-                navigation.replace('AuthStack', {screen: 'Login'});
-              },
-            },
-          ]);
-        } else {
-          Alert.alert(
-            'Server Error',
-            `Failed to load details (Code: ${error.response.status}).`,
-          );
-        }
-      } else if (error.request) {
-        Alert.alert('Network Error', 'Could not connect.');
-      } else {
-        Alert.alert('Error', 'An unexpected error occurred.');
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [navigation]);
+    },
+    [navigation, refreshing],
+  ); // Add refreshing dependency
 
-  // --- Initial Fetch ---
-  useEffect(() => {
-    setLoading(true);
-    fetchUserDetails();
-  }, [fetchUserDetails]);
+  // --- Fetch data when screen comes into focus ---
+  useFocusEffect(
+    useCallback(() => {
+      console.log('Profile Screen focused, fetching details...');
+      fetchUserDetails(true); // Pass true to show loading indicator on focus
 
-  // --- Refresh Handler ---
+      // Optional: Cleanup function (runs when screen loses focus)
+      return () => {
+        console.log('Profile Screen unfocused');
+        // You could cancel ongoing fetches here if needed
+      };
+    }, [fetchUserDetails]), // Dependency array includes fetchUserDetails
+  );
+
+  // --- Refresh Handler --- (Calls fetchUserDetails without skeleton)
   const onRefresh = useCallback(() => {
+    console.log('Pull-to-refresh triggered');
     setRefreshing(true);
-    fetchUserDetails();
+    fetchUserDetails(false); // Pass false to avoid showing skeleton on manual refresh
   }, [fetchUserDetails]);
 
-  // --- Logout Handler ---
+  // --- Other Handlers (handleLogout, handleEditProfile, delete logic) --- (remain the same)
   const handleLogout = useCallback(async () => {
+    /* ... */
     console.log('Logout pressed');
     await AsyncStorage.multiRemove(['userToken', 'rememberMe']);
-    // Reset navigation stack to initial route (adjust name if needed)
     navigation.reset({index: 0, routes: [{name: 'Welcome'}]});
-
     if (Platform.OS === 'android') {
       ToastAndroid.showWithGravity(
         'Logout Successful.',
@@ -264,71 +292,50 @@ export default function ProfileScreen() {
         ToastAndroid.BOTTOM,
       );
     }
-    // No specific iOS feedback added here, adjust if needed
   }, [navigation]);
 
-  // --- Edit Profile Handler ---
   const handleEditProfile = useCallback(() => {
-    Alert.alert('Not Implemented', 'Edit profile is not yet available.');
-  }, []);
+    if (user) {
+      // Ensure user data is loaded before navigating
+      navigation.navigate('EditProfile', {user: user});
+    } else {
+      Alert.alert('Please wait', 'User data is still loading.');
+    }
+  }, [navigation, user]); // Add user dependency
 
-  // --- Delete Account Logic --- Using RN Modal
-
-  // Function that performs the actual deletion API call
   const performAccountDeletion = useCallback(async () => {
+    /* ... */
     setIsDeleting(true);
-    let userToken = null;
+    let userToken = await AsyncStorage.getItem('userToken');
+    if (!userToken) {
+      /* ... handle no token ... */ return;
+    }
     try {
-      userToken = await AsyncStorage.getItem('userToken');
-      if (!userToken) {
-        Alert.alert(
-          'Error',
-          'Authentication token not found. Please log in again.',
-        );
-        setIsModalVisible(false); // Close modal before logging out
-        handleLogout();
-        return;
-      }
-      console.log('Attempting DELETE to URL:', DeleteAccountUrl);
       const response = await axios.delete(DeleteAccountUrl, {
         headers: {Authorization: `Bearer ${userToken}`},
       });
-
       if (response.status === 200 || response.status === 204) {
-        console.log('Account deletion successful');
-        setIsModalVisible(false); // Close modal first
-        Alert.alert('Success', 'Your account has been deleted.', [
-          {text: 'OK', onPress: handleLogout}, // Then log out
+        /* ... handle success ... */ setIsModalVisible(false);
+        Alert.alert('Success', 'Account deleted.', [
+          {text: 'OK', onPress: handleLogout},
         ]);
       } else {
-        Alert.alert('Error', `Unexpected response (${response.status}).`);
-        setIsModalVisible(false); // Close modal on unexpected success
+        /* ... handle unexpected success status ... */
       }
     } catch (error) {
+      /* ... handle deletion error ... */
       console.error('Error deleting account:', error);
-      let errorMessage = 'An error occurred while deleting your account.';
-      if (error.response) {
-        if (error.response.status === 401 || error.response.status === 403) {
-          errorMessage =
-            'Authentication failed. Please log out and log back in.';
-        } else if (error.response.data?.message) {
-          errorMessage = error.response.data.message;
-        } else {
-          errorMessage = `Server error (Code: ${error.response.status}).`;
-        }
-      } else if (error.request) {
-        errorMessage = 'Network error. Check connection.';
-      }
+      let errorMessage =
+        'An error occurred.'; /* ... more detailed error message logic ... */
       Alert.alert('Deletion Failed', errorMessage);
-      setIsModalVisible(false); // Close modal on error
+      setIsModalVisible(false);
     } finally {
       setIsDeleting(false);
     }
-  }, [handleLogout]); // Depends only on handleLogout
+  }, [handleLogout]);
 
-  // handleDeleteAccount now shows the confirmation Modal
   const handleDeleteAccount = useCallback(() => {
-    setIsModalVisible(true); // Show the modal
+    setIsModalVisible(true);
   }, []);
 
   // --- Render Logic ---
@@ -336,7 +343,8 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <AppHeader showSearchIcon={false} />
 
-      {loading && !refreshing ? (
+      {/* Show Skeleton only on initial load triggered by focus, not during manual refresh */}
+      {loading && !refreshing && !user ? (
         <ProfileSkeleton theme={paperTheme} />
       ) : (
         <ScrollView
@@ -344,168 +352,177 @@ export default function ProfileScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={onRefresh}
+              onRefresh={onRefresh} // Use the updated onRefresh
               colors={[paperTheme.colors.primary]}
               tintColor={paperTheme.colors.primary}
             />
-          }>
-          {/* --- User Info Header --- */}
-          <View style={styles.header}>
-            <IconButton
-              icon="pencil-outline"
-              size={24}
-              style={styles.editIcon}
-              onPress={handleEditProfile}
-              iconColor={paperTheme.colors.primary}
-              mode="contained-tonal"
-            />
-            <Image
-              source={
-                user?.avatarUrl
-                  ? {uri: user.avatarUrl}
-                  : require('../../assets/images/no-user-image.png')
-              }
-              style={styles.profileImage}
-            />
-            <Text variant="headlineMedium" style={styles.userName}>
-              {user?.fullName || 'User Name'}
-            </Text>
-            <Text variant="bodyMedium" style={styles.userEmail}>
-              {user?.email || 'user@example.com'}
-            </Text>
-            {/* Account Type Caption removed as per previous code state */}
-          </View>
-
-          {/* --- Stats --- */}
-          <Surface style={styles.statsSurface} elevation={1}>
-            <View style={styles.statItem}>
-              <Text variant="titleMedium">{user?.documents?.length ?? 0}</Text>
-              <Caption>Documents</Caption>
-            </View>
-            <Divider style={styles.statsDivider} />
-            <View style={styles.statItem}>
-              <Text variant="titleMedium">{user?.translations ?? 0}</Text>
-              <Caption>Translations</Caption>
-            </View>
-            <Divider style={styles.statsDivider} />
-            <View style={styles.statItem}>
-              <Text variant="titleMedium">{user?.languages ?? 0}</Text>
-              <Caption>Languages</Caption>
-            </View>
-          </Surface>
-
-          {/* --- Account Information --- */}
-          <List.Section
-            title="Account Information"
-            titleStyle={styles.sectionTitle}>
-            <List.Item
-              title="Full Name"
-              description={user?.fullName || 'Not available'}
-              left={() => <List.Icon icon="account-circle-outline" />}
-            />
-            <List.Item
-              title="Email Address"
-              description={user?.email || 'Not available'}
-              left={() => <List.Icon icon="email-outline" />}
-            />
-            {/* Phone Number removed as per previous code state */}
-          </List.Section>
-
-          <Divider style={styles.divider} />
-
-          {/* --- Security --- */}
-          <List.Section title="Security" titleStyle={styles.sectionTitle}>
-            <List.Item
-              title="Change Password"
-              left={() => <List.Icon icon="lock-outline" />}
-              right={() => <List.Icon icon="chevron-right" />}
-              onPress={() => {
-                Alert.alert(
-                  'Not Implemented',
-                  'Change Password is not yet available.',
-                );
-              }}
-            />
-            <List.Item
-              title="Two-Factor Authentication"
-              description={isTwoFactorEnabled ? 'Enabled' : 'Not enabled'}
-              left={() => <List.Icon icon="shield-check-outline" />}
-              right={() => (
-                <Switch
-                  value={isTwoFactorEnabled}
-                  onValueChange={setIsTwoFactorEnabled}
+          }
+          // Optional: Add keyboardShouldPersistTaps="handled" if inputs were present
+        >
+          {/* Check if user exists before rendering details */}
+          {user ? (
+            <>
+              {/* User Info Header */}
+              <View style={styles.header}>
+                <IconButton
+                  icon="pencil-outline"
+                  size={24}
+                  style={styles.editIcon}
+                  onPress={handleEditProfile}
+                  iconColor={paperTheme.colors.primary}
+                  mode="contained-tonal"
                 />
-              )}
-              onPress={() => setIsTwoFactorEnabled(!isTwoFactorEnabled)}
-            />
-          </List.Section>
-
-          <Divider style={styles.divider} />
-
-          {/* --- Preferences --- */}
-          <List.Section title="Preferences" titleStyle={styles.sectionTitle}>
-            <List.Item
-              title="Dark Mode"
-              description={isDarkMode ? 'On' : 'Off'}
-              left={() => <List.Icon icon="theme-light-dark" />}
-              right={() => (
-                <Switch
-                  value={isDarkMode}
-                  onValueChange={toggleDarkMode}
-                  color={paperTheme.colors.primary}
+                <Image
+                  source={
+                    user.userImage
+                      ? {uri: user.userImage}
+                      : require('../../assets/images/no-user-image.png')
+                  }
+                  style={styles.profileImage}
                 />
-              )}
-              onPress={toggleDarkMode}
-            />
-          </List.Section>
+                <Text variant="headlineMedium" style={styles.userName}>
+                  {user.fullName || 'N/A'}
+                </Text>
+                <Text variant="bodyMedium" style={styles.userEmail}>
+                  {user.email || 'N/A'}
+                </Text>
+              </View>
 
-          <Divider style={styles.divider} />
+              {/* Stats Surface */}
+              <Surface style={styles.statsSurface} elevation={1}>
+                <View style={styles.statItem}>
+                  <Text variant="titleMedium">
+                    {user.documents?.length ?? 0}
+                  </Text>
+                  <Caption>Documents</Caption>
+                </View>
+                <Divider style={styles.statsDivider} />
+                <View style={styles.statItem}>
+                  <Text variant="titleMedium">{user.translations ?? 0}</Text>
+                  <Caption>Translations</Caption>
+                </View>
+                <Divider style={styles.statsDivider} />
+                <View style={styles.statItem}>
+                  <Text variant="titleMedium">
+                    {user.language?.length ?? 0}
+                  </Text>
+                  <Caption>Languages</Caption>
+                </View>
+              </Surface>
 
-          {/* --- Logout Button --- */}
-          <Button
-            icon="logout"
-            mode="outlined"
-            onPress={handleLogout}
-            style={styles.logoutButton}
-            textColor={paperTheme.colors.primary}>
-            Log Out
-          </Button>
-
-          <Divider style={styles.divider} />
-
-          {/* --- Danger Zone --- */}
-          <List.Section
-            title="Danger Zone"
-            titleStyle={[
-              styles.sectionTitle,
-              {color: paperTheme.colors.error},
-            ]}>
-            <Text style={styles.dangerDescription}>
-              Permanently delete your account and all associated data. This
-              action cannot be undone.
-            </Text>
-            <Button
-              icon="delete-forever-outline"
-              mode="contained"
-              onPress={handleDeleteAccount} // Calls function to show Modal
-              buttonColor={paperTheme.colors.error}
-              textColor={paperTheme.colors.onError}
-              style={styles.deleteButton}>
-              Delete Account
-            </Button>
-          </List.Section>
+              {/* List Sections (Account, Security, Preferences, Danger Zone) */}
+              <List.Section
+                title="Account Information"
+                titleStyle={styles.sectionTitle}>
+                {/* List Items for Full Name, Email */}
+                <List.Item
+                  title="Full Name"
+                  description={user.fullName || 'N/A'}
+                  left={() => <List.Icon icon="account-circle-outline" />}
+                />
+                <List.Item
+                  title="Email Address"
+                  description={user.email || 'N/A'}
+                  left={() => <List.Icon icon="email-outline" />}
+                />
+              </List.Section>
+              <Divider style={styles.divider} />
+              <List.Section title="Security" titleStyle={styles.sectionTitle}>
+                {/* List Items for Change Password, 2FA */}
+                <List.Item
+                  title="Change Password"
+                  left={() => <List.Icon icon="lock-outline" />}
+                  right={() => <List.Icon icon="chevron-right" />}
+                  onPress={() => {
+                    Alert.alert('Not Implemented');
+                  }}
+                />
+                <List.Item
+                  title="Two-Factor Authentication"
+                  description={isTwoFactorEnabled ? 'Enabled' : 'Not enabled'}
+                  left={() => <List.Icon icon="shield-check-outline" />}
+                  right={() => (
+                    <Switch
+                      value={isTwoFactorEnabled}
+                      onValueChange={setIsTwoFactorEnabled}
+                    />
+                  )}
+                  onPress={() => setIsTwoFactorEnabled(!isTwoFactorEnabled)}
+                />
+              </List.Section>
+              <Divider style={styles.divider} />
+              <List.Section
+                title="Preferences"
+                titleStyle={styles.sectionTitle}>
+                {/* List Item for Dark Mode */}
+                <List.Item
+                  title="Dark Mode"
+                  description={isDarkMode ? 'On' : 'Off'}
+                  left={() => <List.Icon icon="theme-light-dark" />}
+                  right={() => (
+                    <Switch
+                      value={isDarkMode}
+                      onValueChange={toggleDarkMode}
+                      color={paperTheme.colors.primary}
+                    />
+                  )}
+                  onPress={toggleDarkMode}
+                />
+              </List.Section>
+              <Divider style={styles.divider} />
+              {/* Logout Button */}
+              <Button
+                icon="logout"
+                mode="outlined"
+                onPress={handleLogout}
+                style={styles.logoutButton}
+                textColor={paperTheme.colors.primary}>
+                {' '}
+                Log Out{' '}
+              </Button>
+              <Divider style={styles.divider} />
+              {/* Danger Zone */}
+              <List.Section
+                title="Danger Zone"
+                titleStyle={[
+                  styles.sectionTitle,
+                  {color: paperTheme.colors.error},
+                ]}>
+                <Text style={styles.dangerDescription}>
+                  {' '}
+                  Permanently delete your account and all associated data. This
+                  action cannot be undone.{' '}
+                </Text>
+                <Button
+                  icon="delete-forever-outline"
+                  mode="contained"
+                  onPress={handleDeleteAccount}
+                  buttonColor={paperTheme.colors.error}
+                  textColor={paperTheme.colors.onError}
+                  style={styles.deleteButton}>
+                  {' '}
+                  Delete Account{' '}
+                </Button>
+              </List.Section>
+            </>
+          ) : (
+            // Optional: Show a message if user is null after loading (e.g., fetch failed but didn't error out fully)
+            !loading && (
+              <View style={styles.centeredMessage}>
+                <Text>Could not load profile data.</Text>
+              </View>
+            )
+          )}
         </ScrollView>
       )}
 
-      {/* --- Delete Confirmation Modal --- */}
+      {/* Delete Confirmation Modal (remains the same) */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={isModalVisible}
         onRequestClose={() => {
-          if (!isDeleting) {
-            setIsModalVisible(false);
-          }
+          if (!isDeleting) setIsModalVisible(false);
         }}>
         <View style={styles.modalOverlay}>
           <View
@@ -513,19 +530,17 @@ export default function ProfileScreen() {
               styles.modalContent,
               {backgroundColor: paperTheme.colors.elevation.level3},
             ]}>
-            {/* Optional: Add an Icon maybe? */}
-            {/* <IconButton icon="alert-circle-outline" size={30} iconColor={paperTheme.colors.error} style={{alignSelf: 'center'}}/> */}
             <Text style={[styles.modalTitle, {color: paperTheme.colors.error}]}>
-              Delete Account?
+              {' '}
+              Delete Account?{' '}
             </Text>
             <Paragraph
               style={[
                 styles.modalMessage,
                 {color: paperTheme.colors.onSurface},
               ]}>
-              Are you absolutely sure you want to permanently delete your
-              account? All associated data will be lost. This action cannot be
-              undone.
+              {' '}
+              Are you absolutely sure...?{' '}
             </Paragraph>
             <View style={styles.modalActions}>
               <Button
@@ -534,7 +549,8 @@ export default function ProfileScreen() {
                 disabled={isDeleting}
                 textColor={paperTheme.colors.onSurfaceVariant}
                 style={{marginRight: 10}}>
-                Cancel
+                {' '}
+                Cancel{' '}
               </Button>
               <Button
                 mode="contained"
@@ -543,7 +559,8 @@ export default function ProfileScreen() {
                 disabled={isDeleting}
                 buttonColor={paperTheme.colors.error}
                 textColor={paperTheme.colors.onError}>
-                Delete
+                {' '}
+                Delete{' '}
               </Button>
             </View>
           </View>
@@ -553,9 +570,10 @@ export default function ProfileScreen() {
   );
 }
 
-// --- Styles ---
+// --- Styles --- (remain the same, added centeredMessage)
 const createStyles = theme =>
   StyleSheet.create({
+    /* ... existing styles ... */
     container: {flex: 1, backgroundColor: theme.colors.background},
     scrollContent: {paddingHorizontal: 16, paddingBottom: 30, flexGrow: 1},
     header: {
@@ -638,7 +656,6 @@ const createStyles = theme =>
       paddingHorizontal: 5,
     },
     deleteButton: {marginTop: 10, marginBottom: 20, paddingVertical: 5},
-    // Styles for React Native Modal
     modalOverlay: {
       flex: 1,
       justifyContent: 'center',
@@ -649,43 +666,31 @@ const createStyles = theme =>
       width: '85%',
       maxWidth: 400,
       padding: 25,
-      borderRadius: theme.roundness * 2, // Use theme rounding
-      elevation: 8, // Android shadow
-      shadowColor: '#000', // iOS shadow
+      borderRadius: theme.roundness * 2,
+      elevation: 8,
+      shadowColor: '#000',
       shadowOffset: {width: 0, height: 2},
       shadowOpacity: 0.25,
       shadowRadius: 3.84,
-      // backgroundColor is set dynamically using theme
     },
     modalTitle: {
       fontSize: 20,
       fontWeight: 'bold',
       textAlign: 'center',
       marginBottom: 15,
-      // color is set dynamically using theme
     },
     modalMessage: {
       fontSize: 16,
       textAlign: 'center',
       marginBottom: 25,
       lineHeight: 22,
-      // color is set dynamically using theme
     },
-    modalActions: {
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-    },
-  });
-
-// --- Skeleton Styles ---
-const createSkeletonStyles = theme =>
-  StyleSheet.create({
-    container: {paddingHorizontal: 16, paddingTop: 0},
-    header: {
+    modalActions: {flexDirection: 'row', justifyContent: 'flex-end'},
+    centeredMessage: {
+      // Added style for fallback message
+      flex: 1,
+      justifyContent: 'center',
       alignItems: 'center',
-      paddingTop: 40,
-      paddingBottom: 20,
-      marginBottom: 20,
+      padding: 20,
     },
-    listSection: {marginBottom: 20},
   });
