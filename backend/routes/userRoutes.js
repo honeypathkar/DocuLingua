@@ -9,6 +9,7 @@ const {
   changePassword,
   forgotPassword,
   verifyOTPAndResetPassword,
+  getAllUsers,
 } = require("../controllers/userController");
 const verifyToken = require("../middleware/verifyToken");
 
@@ -28,6 +29,9 @@ router.put("/me", verifyToken, updateUserAccount);
 
 // DELETE /api/users/me - Delete current logged-in user's account
 router.delete("/me", verifyToken, deleteUserAccount);
+
+// GET /api/users/all - Get all users
+router.get("/all", verifyToken, getAllUsers);
 
 // PUT /api/users/change-password - Change password
 router.put("/change-password", changePassword);

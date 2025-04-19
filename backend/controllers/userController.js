@@ -111,7 +111,9 @@ const getUserDetails = async (req, res) => {
   try {
     // User ID is attached to req object by verifyToken middleware
     const userId = req.userId;
-    const user = await UserModel.findById(userId).select("-password"); // Exclude password
+    const user = await UserModel.findById(userId).select(
+      "-password -userImagePublicId -otp -otpExpiry"
+    ); // Exclude password
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -355,6 +357,21 @@ const changePassword = async (req, res) => {
   }
 };
 
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await UserModel.find().select(
+      "-password -userImagePublicId -otp -otpExpiry"
+    );
+    res.status(200).json({ users });
+  } catch (error) {
+    console.error("Get All Users Error:", error);
+    res.status(500).json({
+      message: "Server error fetching all users",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   signupUser,
   loginUser,
@@ -365,4 +382,5 @@ module.exports = {
   forgotPassword,
   verifyOTPAndResetPassword,
   changePassword,
+  getAllUsers,
 };

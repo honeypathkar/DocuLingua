@@ -5,7 +5,7 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
+  // Alert, // Using ToastAndroid
   Platform,
   KeyboardAvoidingView,
   ToastAndroid,
@@ -16,37 +16,11 @@ import {
   Button,
   useTheme,
   HelperText,
-  Text, // Added for potential instructions
+  Text,
 } from 'react-native-paper';
-
-// --- Placeholder API Functions ---
-// Replace these with your actual API calls
-const sendOtpApi = async email => {
-  console.log('API Call: Sending OTP to', email);
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  // Simulate success/failure
-  if (email.includes('@')) {
-    return {success: true, message: 'OTP sent successfully!'};
-  } else {
-    throw new Error('Invalid email format for OTP');
-  }
-};
-
-const verifyOtpAndResetApi = async (email, otp, newPassword) => {
-  console.log('API Call: Verifying OTP and Resetting Password for', email);
-  console.log('OTP:', otp, 'New Password:', newPassword);
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  // Simulate success/failure
-  if (otp === '123456' && newPassword.length >= 6) {
-    // Example validation
-    return {success: true, message: 'Password reset successfully!'};
-  } else {
-    throw new Error('Invalid OTP or password too short.');
-  }
-};
-// --- End Placeholder API Functions ---
+import axios from 'axios'; // Import axios directly
+// Assuming these URLs are correctly defined and exported from your API file
+import {ForgotPasswordUrl, VerifyOTPAndResetPassword} from '../../../API';
 
 const ForgotPasswordScreen = () => {
   const theme = useTheme();
@@ -57,76 +31,100 @@ const ForgotPasswordScreen = () => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [showOtpFields, setShowOtpFields] = useState(false); // Control visibility
+  const [showOtpFields, setShowOtpFields] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
 
+  // --- Helper to Extract Error Message ---
+  const getErrorMessage = error => {
+    if (error.response?.data?.message) {
+      return error.response.data.message; // Message from backend response
+    }
+    if (error.message) {
+      return error.message; // Network error or other axios/js error
+    }
+    return 'An unexpected error occurred. Please try again.'; // Default
+  };
+
   // --- Handlers ---
   const handleSendOtp = useCallback(async () => {
-    if (!email.trim() || !email.includes('@')) {
-      // Basic validation
-      Alert.alert('Validation Error', 'Please enter a valid email address.');
+    const trimmedEmail = email.trim();
+    // Validation check still happens on press, but button is disabled if empty
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      ToastAndroid.show(
+        'Please enter a valid email address.',
+        ToastAndroid.SHORT,
+      );
       return;
     }
     setIsSendingOtp(true);
     try {
-      const response = await sendOtpApi(email.trim());
-      if (response.success) {
-        setShowOtpFields(true); // Show OTP and Password fields
-        ToastAndroid.show(response.message || 'OTP sent!', ToastAndroid.SHORT);
-      } else {
-        Alert.alert('Error', response.message || 'Failed to send OTP.');
-      }
+      console.log(`Sending POST request to ${ForgotPasswordUrl}`);
+      const response = await axios.post(
+        ForgotPasswordUrl,
+        {email: trimmedEmail},
+        {timeout: 15000},
+      );
+      console.log('Send OTP Response:', response.data);
+      setShowOtpFields(true);
+      ToastAndroid.show(
+        response.data.message || 'OTP sent successfully!',
+        ToastAndroid.SHORT,
+      );
     } catch (error) {
       console.error('Send OTP Error:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'An unexpected error occurred while sending OTP.',
-      );
+      const message = getErrorMessage(error);
+      ToastAndroid.show(message, ToastAndroid.LONG);
     } finally {
       setIsSendingOtp(false);
     }
   }, [email]);
 
   const handleResetPassword = useCallback(async () => {
-    if (!otp.trim() || otp.length !== 6) {
-      // Example OTP length validation
-      Alert.alert('Validation Error', 'Please enter a valid 6-digit OTP.');
+    const trimmedOtp = otp.trim();
+    const trimmedNewPassword = newPassword.trim();
+    const trimmedEmail = email.trim();
+
+    // Validation check still happens on press, but button is disabled if invalid
+    if (!trimmedOtp || trimmedOtp.length !== 6) {
+      ToastAndroid.show(
+        'Please enter a valid 6-digit OTP.',
+        ToastAndroid.SHORT,
+      );
       return;
     }
-    if (!newPassword.trim() || newPassword.length < 6) {
-      // Example password length validation
-      Alert.alert(
-        'Validation Error',
+    if (!trimmedNewPassword || trimmedNewPassword.length < 6) {
+      ToastAndroid.show(
         'Password must be at least 6 characters long.',
+        ToastAndroid.SHORT,
       );
       return;
     }
 
     setIsResetting(true);
     try {
-      const response = await verifyOtpAndResetApi(
-        email.trim(),
-        otp.trim(),
-        newPassword.trim(),
+      console.log(`Sending POST request to ${VerifyOTPAndResetPassword}`); // Changed log to POST as axios call is POST
+      const response = await axios.post(
+        // Changed to POST to match backend function name convention likely
+        VerifyOTPAndResetPassword,
+        {
+          email: trimmedEmail,
+          otp: trimmedOtp,
+          newPassword: trimmedNewPassword,
+        },
+        {timeout: 15000},
       );
-      if (response.success) {
-        ToastAndroid.show(
-          response.message || 'Password Reset Successful!',
-          ToastAndroid.LONG,
-        );
-        // Navigate to Login screen or wherever appropriate after reset
-        navigation.navigate('Login'); // <-- Adjust navigation target if needed
-      } else {
-        Alert.alert('Error', response.message || 'Failed to reset password.');
-      }
+      console.log('Reset Password Response:', response.data);
+      ToastAndroid.show(
+        response.data.message || 'Password Reset Successful!',
+        ToastAndroid.LONG,
+      );
+      navigation.navigate('Login');
     } catch (error) {
       console.error('Reset Password Error:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'An unexpected error occurred during password reset.',
-      );
+      const message = getErrorMessage(error);
+      ToastAndroid.show(message, ToastAndroid.LONG);
     } finally {
       setIsResetting(false);
     }
@@ -138,7 +136,21 @@ const ForgotPasswordScreen = () => {
     }
   }, [navigation]);
 
-  const isLoading = isSendingOtp || isResetting; // Combined loading state for disabling inputs
+  const isLoading = isSendingOtp || isResetting;
+
+  // --- Button Disabling Logic ---
+  const trimmedEmail = email.trim();
+  const isSendOtpDisabled = isSendingOtp || !trimmedEmail; // Disable if sending or email is empty
+
+  const trimmedOtp = otp.trim();
+  const trimmedNewPassword = newPassword.trim();
+  // Disable if resetting, or OTP is invalid, or New Password is too short
+  const isResetPasswordDisabled =
+    isResetting ||
+    !trimmedOtp ||
+    trimmedOtp.length !== 6 ||
+    !trimmedNewPassword ||
+    trimmedNewPassword.length < 6;
 
   // --- Render ---
   return (
@@ -162,9 +174,9 @@ const ForgotPasswordScreen = () => {
           style={styles.input}
           keyboardType="email-address"
           autoCapitalize="none"
-          disabled={showOtpFields || isLoading} // Disable after OTP sent or during loading
+          disabled={isSendingOtp || showOtpFields} // Disable if sending or OTP fields shown
         />
-        <HelperText type="info" visible={!showOtpFields}>
+        <HelperText type="info" visible={!showOtpFields && !isSendingOtp}>
           Enter your registered email to receive an OTP.
         </HelperText>
 
@@ -178,11 +190,14 @@ const ForgotPasswordScreen = () => {
               mode="outlined"
               style={styles.input}
               keyboardType="number-pad"
-              maxLength={6} // Assuming 6-digit OTP
+              maxLength={6}
               disabled={isLoading}
+              error={otp.length > 0 && otp.trim().length !== 6} // Show error state if partially filled and wrong length
             />
-            <HelperText type="info" visible={true}>
-              Enter the 6-digit OTP sent to your email.
+            <HelperText
+              type="error"
+              visible={otp.length > 0 && otp.trim().length !== 6}>
+              OTP must be 6 digits.
             </HelperText>
 
             <TextInput
@@ -193,6 +208,7 @@ const ForgotPasswordScreen = () => {
               style={styles.input}
               secureTextEntry={!passwordVisible}
               disabled={isLoading}
+              error={newPassword.length > 0 && newPassword.trim().length < 6} // Show error state if partially filled and too short
               right={
                 <TextInput.Icon
                   icon={passwordVisible ? 'eye-off' : 'eye'}
@@ -203,13 +219,13 @@ const ForgotPasswordScreen = () => {
             />
             <HelperText
               type="error"
-              visible={newPassword.length > 0 && newPassword.length < 6}>
+              visible={newPassword.length > 0 && newPassword.trim().length < 6}>
               Password must be at least 6 characters.
             </HelperText>
           </>
         )}
 
-        {/* --- Spacer to push button down when fields appear --- */}
+        {/* --- Spacer --- */}
         <View style={{flex: 1}} />
       </ScrollView>
 
@@ -221,7 +237,8 @@ const ForgotPasswordScreen = () => {
             onPress={handleSendOtp}
             style={styles.button}
             icon="email-send-outline"
-            disabled={isSendingOtp}
+            // Use the new disabled logic for Send OTP button
+            disabled={isSendOtpDisabled}
             loading={isSendingOtp}>
             {isSendingOtp ? 'Sending OTP...' : 'Send OTP'}
           </Button>
@@ -231,7 +248,8 @@ const ForgotPasswordScreen = () => {
             onPress={handleResetPassword}
             style={styles.button}
             icon="lock-reset"
-            disabled={isResetting}
+            // Use the new disabled logic for Reset Password button
+            disabled={isResetPasswordDisabled}
             loading={isResetting}>
             {isResetting ? 'Resetting...' : 'Verify OTP & Reset Password'}
           </Button>
@@ -241,7 +259,7 @@ const ForgotPasswordScreen = () => {
   );
 };
 
-// --- Styles (Adapted from EditProfileScreen) ---
+// --- Styles (Keep the same) ---
 const createStyles = theme =>
   StyleSheet.create({
     container: {
@@ -249,9 +267,9 @@ const createStyles = theme =>
       backgroundColor: theme.colors.background,
     },
     scrollContainer: {
-      flexGrow: 1, // Ensure content can push button down
+      flexGrow: 1,
       padding: 20,
-      paddingBottom: 100, // Extra padding at bottom to ensure space above button
+      paddingBottom: 100,
     },
     input: {
       width: '100%',
@@ -261,6 +279,7 @@ const createStyles = theme =>
       width: '100%',
       marginBottom: 10,
       paddingLeft: 0,
+      minHeight: 18, // Give helper text a minimum height to reduce layout jumps
     },
     bottomButtonContainer: {
       position: 'absolute',
