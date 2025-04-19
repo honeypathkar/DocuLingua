@@ -6,6 +6,7 @@ const {
   getUserDetails,
   updateUserAccount,
   deleteUserAccount,
+  changePassword,
 } = require("../controllers/userController");
 const verifyToken = require("../middleware/verifyToken");
 
@@ -25,5 +26,8 @@ router.put("/me", verifyToken, updateUserAccount);
 
 // DELETE /api/users/me - Delete current logged-in user's account
 router.delete("/me", verifyToken, deleteUserAccount);
+
+// PUT /api/users/change-password - Change password
+router.put("/change-password", changePassword);
 
 module.exports = router;

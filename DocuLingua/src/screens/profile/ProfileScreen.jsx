@@ -394,7 +394,7 @@ export default function ProfileScreen() {
                   left={() => <List.Icon icon="lock-outline" />}
                   right={() => <List.Icon icon="chevron-right" />}
                   onPress={() => {
-                    Alert.alert('Not Implemented');
+                    navigation.navigate('ChangePassword', {email: user?.email});
                   }}
                 />
                 <List.Item

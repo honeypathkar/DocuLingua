@@ -102,11 +102,7 @@ const LoginScreen = ({navigation}) => {
   };
 
   const handleForgotPassword = () => {
-    if (Platform.OS === 'android') {
-      ToastAndroid.show('Not Implemented Yet.', ToastAndroid.SHORT);
-    } else {
-      Alert.alert('Not Implemented');
-    }
+    navigation.navigate('ForgotPassword');
   };
   const toggleRememberMe = () => setRememberMe(!rememberMe);
   const navigateToRegister = () => navigation.navigate('Register');

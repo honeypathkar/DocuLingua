@@ -22,6 +22,8 @@ const Stack = createNativeStackNavigator();
 // Use MD3DarkTheme for dark mode base
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 import EditProfileScreen from './screens/profile/EditProfileScreen';
+import ForgotPasswordScreen from './screens/auth/ForgotPasswordScreen';
+import ChangePasswordScreen from './screens/auth/ChangePasswordScreen';
 
 // --- App Content Component ---
 // This component exists within the ThemeProvider's scope
@@ -100,6 +102,16 @@ function AppContent() {
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+            <Stack.Screen
+              name="ForgotPassword"
+              component={ForgotPasswordScreen}
+              options={{animation: 'ios_from_right'}}
+            />
+            <Stack.Screen
+              name="ChangePassword"
+              component={ChangePasswordScreen}
               options={{animation: 'ios_from_right'}}
             />
           </Stack.Navigator>
