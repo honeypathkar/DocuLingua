@@ -9,5 +9,5 @@ export const GetUserDetailsUrl = `${BaseURL}/api/users/me`;
 export const UpdateAccountUrl = `${BaseURL}/api/users/me`;
 export const DeleteAccountUrl = `${BaseURL}/api/users/me`;
 export const ChangePasswordUrl = `${BaseURL}/api/users/change-password`;
+export const SendOtpUrl = `${BaseURL}/api/users/sendOtp`;
 export const ForgotPasswordUrl = `${BaseURL}/api/users/forgot-password`;
-export const VerifyOTPAndResetPassword = `${BaseURL}/api/users/verify-otp-and-reset-password`;

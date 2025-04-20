@@ -546,10 +546,10 @@ const createStyles = theme =>
       backgroundColor: theme.colors.surface,
       marginHorizontal: -16,
       paddingHorizontal: 16,
-      borderBottomLeftRadius: 20,
-      borderBottomRightRadius: 20,
+      // borderBottomLeftRadius: 20,
+      // borderBottomRightRadius: 20,
       marginBottom: 20,
-      elevation: 2,
+      // elevation: 2,
     },
     editIcon: {
       position: 'absolute',

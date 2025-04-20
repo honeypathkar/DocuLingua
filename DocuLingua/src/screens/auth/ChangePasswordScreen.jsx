@@ -15,29 +15,24 @@ import {
   TextInput,
   Button,
   useTheme,
-  HelperText, // Make sure HelperText is imported
+  HelperText,
+  Text, // Import Text if you decide to use it instead of Button
 } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import {ChangePasswordUrl} from '../../../API';
+import {ChangePasswordUrl} from '../../../API'; // Ensure path is correct
 
-// --- Real API Function (remains the same) ---
+// --- Real API Function ---
 const changePasswordApi = async (email, oldPassword, newPassword, token) => {
-  // ... (API logic from previous step remains unchanged)
+  // ... (API logic remains unchanged)
   console.log('API Call: Changing Password for email:', email);
-  if (!token) {
-    throw new Error('Authentication token is missing.');
-  }
-  if (!email) {
-    throw new Error('User email is missing.');
-  }
-
+  if (!token) throw new Error('Authentication token is missing.');
+  if (!email) throw new Error('User email is missing.');
   const requestBody = {
     email: email,
     oldPassword: oldPassword,
     newPassword: newPassword,
   };
-
   try {
     const response = await axios.put(ChangePasswordUrl, requestBody, {
       headers: {
@@ -46,7 +41,6 @@ const changePasswordApi = async (email, oldPassword, newPassword, token) => {
       },
       timeout: 10000,
     });
-
     if (response.status === 200 && response.data) {
       console.log('API Response:', response.data);
       return {
@@ -62,7 +56,6 @@ const changePasswordApi = async (email, oldPassword, newPassword, token) => {
   } catch (error) {
     console.error('Axios Change Password Error:', error);
     const backendMessage = error.response?.data?.message;
-
     if (error.response) {
       console.error('Error Response Data:', error.response.data);
       throw new Error(
@@ -98,14 +91,13 @@ const ChangePasswordScreen = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [userToken, setUserToken] = useState(null);
-
   const [oldPasswordVisible, setOldPasswordVisible] = useState(false);
   const [newPasswordVisible, setNewPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
 
-  // --- Effects --- (Keep Alert for critical setup errors)
+  // --- Effects ---
   useEffect(() => {
-    // ... (useEffect logic remains the same)
+    // ... (Keep existing useEffect for token and email check)
     const getToken = async () => {
       let token = null;
       try {
@@ -118,7 +110,7 @@ const ChangePasswordScreen = () => {
             'Authentication Error',
             'Your session seems to have expired. Please log in again.',
             [{text: 'OK', onPress: () => navigation.navigate('Login')}],
-          );
+          ); // Ensure 'Login' is your login screen name
         }
       } catch (error) {
         console.error('AsyncStorage Error:', error);
@@ -142,17 +134,14 @@ const ChangePasswordScreen = () => {
 
   // --- Handlers ---
   const handleChangePassword = useCallback(async () => {
-    // Trim passwords once for efficiency
+    // ... (Keep existing validation and API call logic)
     const oldPassTrimmed = oldPassword.trim();
     const newPassTrimmed = newPassword.trim();
     const confirmPassTrimmed = confirmPassword.trim();
 
-    // Validation using ToastAndroid
+    // Validations
     if (!userEmailFromRoute) {
-      ToastAndroid.show(
-        'User email is missing. Cannot change password.',
-        ToastAndroid.SHORT,
-      );
+      ToastAndroid.show('User email is missing.', ToastAndroid.SHORT);
       return;
     }
     if (!oldPassTrimmed) {
@@ -173,7 +162,6 @@ const ChangePasswordScreen = () => {
       );
       return;
     }
-    // ---> New Validation Check <---
     if (oldPassTrimmed === newPassTrimmed) {
       ToastAndroid.show(
         'New password cannot be the same as the old password.',
@@ -181,7 +169,6 @@ const ChangePasswordScreen = () => {
       );
       return;
     }
-    // ---> End New Validation Check <---
     if (!confirmPassTrimmed) {
       ToastAndroid.show(
         'Please confirm your new password.',
@@ -194,32 +181,25 @@ const ChangePasswordScreen = () => {
       return;
     }
     if (!userToken) {
-      ToastAndroid.show(
-        'Authentication token is missing. Cannot change password.',
-        ToastAndroid.SHORT,
-      );
+      ToastAndroid.show('Authentication token is missing.', ToastAndroid.SHORT);
       return;
     }
 
     setIsUpdating(true);
     try {
-      // Use trimmed passwords for the API call
       const response = await changePasswordApi(
         userEmailFromRoute,
         oldPassTrimmed,
         newPassTrimmed,
         userToken,
       );
-
       ToastAndroid.show(
         response.message || 'Password Changed Successfully!',
         ToastAndroid.LONG,
       );
-
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-
       if (navigation.canGoBack()) {
         navigation.goBack();
       }
@@ -247,6 +227,13 @@ const ChangePasswordScreen = () => {
     }
   }, [navigation]);
 
+  // --- Forgot Password Handler ---
+  const handleForgotPasswordPress = useCallback(() => {
+    // Navigate to the Forgot Password screen
+    // Ensure 'ForgotPassword' is the correct name of your forgot password route
+    navigation.navigate('ForgotPassword');
+  }, [navigation]);
+
   // --- Derived State for Validation Feedback ---
   const trimmedOldPassword = oldPassword.trim();
   const trimmedNewPassword = newPassword.trim();
@@ -261,19 +248,15 @@ const ChangePasswordScreen = () => {
 
   // --- Dynamic Button Disabling Logic ---
   const isFormIncomplete =
-    !trimmedOldPassword || // Use trimmed values for check
-    !trimmedNewPassword ||
-    !confirmPassword.trim();
-
-  // Add the new validation state to the disabled check
+    !trimmedOldPassword || !trimmedNewPassword || !confirmPassword.trim();
   const isButtonDisabled =
     isUpdating ||
     !userToken ||
     !userEmailFromRoute ||
     isFormIncomplete ||
-    newPasswordTooShort || // Disable if new password is too short
-    newPasswordIsSameAsOld || // Disable if new password is same as old
-    passwordsDoNotMatch; // Disable if new passwords don't match
+    newPasswordTooShort ||
+    newPasswordIsSameAsOld ||
+    passwordsDoNotMatch;
 
   // --- Render ---
   return (
@@ -297,7 +280,6 @@ const ChangePasswordScreen = () => {
           style={styles.input}
           secureTextEntry={!oldPasswordVisible}
           disabled={isUpdating}
-          // Add error prop based on validation if needed, e.g., error={someOldPasswordErrorCondition}
           right={
             <TextInput.Icon
               icon={oldPasswordVisible ? 'eye-off' : 'eye'}
@@ -306,7 +288,17 @@ const ChangePasswordScreen = () => {
             />
           }
         />
-        {/* Optional HelperText */}
+        {/* --- Forgot Password Button --- */}
+        <Button
+          mode="text"
+          onPress={handleForgotPasswordPress}
+          style={styles.forgotPasswordButton}
+          labelStyle={styles.forgotPasswordLabel}
+          compact // Reduces padding
+          disabled={isUpdating} // Disable while updating
+        >
+          Forgot Password?
+        </Button>
 
         {/* --- New Password Input --- */}
         <TextInput
@@ -314,10 +306,10 @@ const ChangePasswordScreen = () => {
           value={newPassword}
           onChangeText={setNewPassword}
           mode="outlined"
-          style={styles.input}
+          style={styles.input} // Keep existing style
           secureTextEntry={!newPasswordVisible}
           disabled={isUpdating}
-          error={newPasswordTooShort || newPasswordIsSameAsOld} // Show error state on input
+          error={newPasswordTooShort || newPasswordIsSameAsOld}
           right={
             <TextInput.Icon
               icon={newPasswordVisible ? 'eye-off' : 'eye'}
@@ -326,21 +318,22 @@ const ChangePasswordScreen = () => {
             />
           }
         />
-        {/* HelperText for length validation */}
+        {/* HelperText for length validation (adjusted spacing) */}
         <HelperText
           type="error"
           visible={newPasswordTooShort}
-          style={styles.helperText}>
+          style={styles.newPassHelperText} // Use adjusted style
+        >
           Password must be at least 6 characters.
         </HelperText>
-        {/* ---> New HelperText for Old vs New Password Check <--- */}
+        {/* HelperText for Old vs New Password Check (adjusted spacing) */}
         <HelperText
           type="error"
-          visible={newPasswordIsSameAsOld} // Show when new password matches old
-          style={styles.helperText}>
+          visible={newPasswordIsSameAsOld}
+          style={styles.newPassHelperText} // Use adjusted style
+        >
           New password cannot be the same as the old password.
         </HelperText>
-        {/* ---> End New HelperText <--- */}
 
         {/* --- Confirm New Password Input --- */}
         <TextInput
@@ -348,10 +341,10 @@ const ChangePasswordScreen = () => {
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           mode="outlined"
-          style={styles.input}
+          style={styles.input} // Keep existing style
           secureTextEntry={!confirmPasswordVisible}
           disabled={isUpdating}
-          error={passwordsDoNotMatch} // Show error state on input
+          error={passwordsDoNotMatch}
           right={
             <TextInput.Icon
               icon={confirmPasswordVisible ? 'eye-off' : 'eye'}
@@ -364,7 +357,8 @@ const ChangePasswordScreen = () => {
         <HelperText
           type="error"
           visible={passwordsDoNotMatch}
-          style={styles.helperText}>
+          style={styles.confirmPassHelperText} // Use specific style (might be same as default)
+        >
           Passwords do not match.
         </HelperText>
 
@@ -379,7 +373,7 @@ const ChangePasswordScreen = () => {
           onPress={handleChangePassword}
           style={styles.button}
           icon="lock-check"
-          disabled={isButtonDisabled} // Use the updated disabled logic
+          disabled={isButtonDisabled}
           loading={isUpdating}>
           {isUpdating ? 'Updating...' : 'Change Password'}
         </Button>
@@ -402,14 +396,33 @@ const createStyles = theme =>
     },
     input: {
       width: '100%',
-      marginBottom: 5, // Keep smaller gap just below input
+      marginBottom: 5, // Standard gap below input field
     },
-    helperText: {
+    forgotPasswordButton: {
+      alignSelf: 'flex-end', // Position to the right
+      marginTop: -5, // Pull slightly closer to the input above
+      marginBottom: 10, // Add space before the next input field
+    },
+    forgotPasswordLabel: {
+      fontSize: 13, // Slightly smaller text
+      textTransform: 'none', // Prevent uppercase if theme does that
+      letterSpacing: 0, // Reset letter spacing if needed
+    },
+    // Style for helper texts below "New Password" - reduced bottom margin
+    newPassHelperText: {
       width: '100%',
-      // marginBottom: 10, // Add space below helper text before next input
       paddingLeft: 0,
-      marginTop: 0, // Adjust if needed
-      minHeight: 18, // Optional: Give it a minimum height to prevent layout jumps when appearing/disappearing
+      marginTop: 0,
+      marginBottom: 2, // Reduced space below these helpers
+      minHeight: 16, // Slightly reduced min height
+    },
+    // Style for helper text below "Confirm New Password"
+    confirmPassHelperText: {
+      width: '100%',
+      paddingLeft: 0,
+      marginTop: 0,
+      marginBottom: 10, // Standard space below this helper before next element (if any)
+      minHeight: 18,
     },
     bottomButtonContainer: {
       // ... (style remains the same)
@@ -426,6 +439,7 @@ const createStyles = theme =>
     },
     button: {
       paddingVertical: 8,
+      width: '100%', // Make main button full width
     },
   });
 
