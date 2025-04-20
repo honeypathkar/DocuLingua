@@ -8,8 +8,8 @@ const {
   deleteUserAccount,
   changePassword,
   forgotPassword,
-  verifyOTPAndResetPassword,
   getAllUsers,
+  sendOtp,
 } = require("../controllers/userController");
 const verifyToken = require("../middleware/verifyToken");
 
@@ -37,9 +37,9 @@ router.get("/all", verifyToken, getAllUsers);
 router.put("/change-password", changePassword);
 
 // POST /api/users/forgot-password - Forgot password
-router.post("/forgot-password", forgotPassword);
+router.post("/sendOtp", sendOtp);
 
 // POST /api/users/verify-otp-and-reset-password - Verify OTP and reset password
-router.post("/verify-otp-and-reset-password", verifyOTPAndResetPassword);
+router.post("/forgot-password", forgotPassword);
 
 module.exports = router;

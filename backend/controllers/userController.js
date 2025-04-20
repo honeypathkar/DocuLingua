@@ -245,7 +245,7 @@ const deleteUserAccount = async (req, res) => {
 };
 
 // --- Forgot Password ---
-const forgotPassword = async (req, res) => {
+const sendOtp = async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
@@ -281,7 +281,7 @@ const forgotPassword = async (req, res) => {
 };
 
 // --- Verify OTP and Reset Password ---
-const verifyOTPAndResetPassword = async (req, res) => {
+const forgotPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
   if (!email || !otp || !newPassword) {
@@ -380,7 +380,7 @@ module.exports = {
   deleteUserAccount,
   changePassword,
   forgotPassword,
-  verifyOTPAndResetPassword,
+  sendOtp,
   changePassword,
   getAllUsers,
 };

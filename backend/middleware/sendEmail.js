@@ -29,11 +29,11 @@ const verificationEmailTemplate = `
 <body>
     <div class="container">
         <div class="header">
-            <h1>Doculingua</h1>
+            <h1>DocuLingua</h1>
         </div>
         <div class="content">
             <p>Hello,</p>
-            <p>Thank you for using Doculingua. Please use the following verification code to complete your action:</p>
+            <p>Thank you for using DocuLingua. Please use the following verification code to complete your action:</p>
 
             <div style="text-align: center;"> <span class="verification-code">{{CODE}}</span>
             </div>
@@ -95,7 +95,7 @@ const sendVerificationEmail = async (recipientEmail, verificationCode) => {
 
     // Define mail options
     const mailOptions = {
-      from: `"Doculingua" <${process.env.EMAIL_USER}>`, // Sender name and address
+      from: `"DocuLingua" <${process.env.EMAIL_USER}>`, // Sender name and address
       to: recipientEmail,
       subject: subject,
       html: htmlContent, // Use the generated HTML
