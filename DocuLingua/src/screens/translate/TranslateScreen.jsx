@@ -5,12 +5,20 @@ import {
   View,
   TouchableOpacity,
   Image,
-  ScrollView, // Keep ScrollView import
+  ScrollView,
+  Alert, // <-- Import Alert
 } from 'react-native';
 import {Text, useTheme, Button} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useNavigation} from '@react-navigation/native';
-import AppHeader from '../../components/AppHeader'; // Assuming you are using this specific header
+import AppHeader from '../../components/AppHeader';
+
+// --- Import Camera functionalities ---
+import {
+  launchCamera,
+  ImageLibraryOptions, // Use this type for options object
+  Asset, // Type for the selected asset
+} from 'react-native-image-picker';
 
 export default function TranslateScreen() {
   const theme = useTheme();
@@ -19,27 +27,75 @@ export default function TranslateScreen() {
 
   const handleOptionPress = docType => {
     console.log(`Selected option: ${docType}`);
+    // Navigate with documentType for standard file/image uploads
     navigation.getParent()?.navigate('UploadScreen', {documentType: docType});
   };
 
-  const handleOpenCamera = () => {
+  // --- Updated Camera Handler ---
+  const handleOpenCamera = async () => {
     console.log('Open Camera pressed');
+    const options = {
+      mediaType: 'photo', // Only allow taking photos
+      quality: 0.8, // Reduce quality slightly for faster uploads (adjust as needed)
+      saveToPhotos: true, // Optional: Saves the photo to the public gallery (requires permissions)
+    };
+
+    try {
+      const result = await launchCamera(options);
+
+      if (result.didCancel) {
+        console.log('User cancelled camera');
+        return; // Exit if the user cancelled
+      }
+      if (result.errorCode) {
+        console.error('Camera Error:', result.errorCode, result.errorMessage);
+        Alert.alert(
+          'Camera Error',
+          result.errorMessage || 'Could not open camera.',
+        );
+        return; // Exit on error
+      }
+      if (result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        console.log('Captured image asset:', JSON.stringify(asset, null, 2));
+
+        // --- Prepare the file data structure expected by UploadScreen ---
+        const fileData = {
+          uri: asset.uri,
+          // Use fileName if available, otherwise generate one
+          name: asset.fileName || `cam_${Date.now()}.jpg`,
+          // Use type if available, otherwise default to jpeg
+          type: asset.type || 'image/jpeg',
+          size: asset.fileSize, // Size might be null sometimes
+        };
+
+        // --- Navigate to UploadScreen ---
+        // Pass 'Image' as documentType AND the captured image data
+        navigation.getParent()?.navigate('UploadScreen', {
+          documentType: 'Image', // Explicitly set type to Image
+          capturedImageData: fileData, // Pass the captured image details
+        });
+      } else {
+        // This case might occur if assets array is empty unexpectedly
+        console.warn('Camera finished without assets, cancellation, or error.');
+        Alert.alert('Error', 'Failed to capture image. Please try again.');
+      }
+    } catch (err) {
+      // Catch any other unexpected errors during launch
+      console.error('Error launching camera:', err);
+      Alert.alert('Error', 'An error occurred while opening the camera.');
+    }
   };
 
   return (
     <View style={styles.container}>
-      {/* Keep your AppHeader if it's outside the scrollable area */}
       <AppHeader />
-
       <ScrollView contentContainerStyle={styles.scrollContentContainer}>
-        {/* --- Add Image Here --- */}
         <Image
-          source={require('../../assets/images/translate_screen.png')} // Make sure this path is correct
+          source={require('../../assets/images/translate_screen.png')}
           style={styles.topImage}
           resizeMode="cover"
         />
-
-        {/* Title and Subtitle */}
         <Text style={styles.title}>Upload a Document</Text>
         <Text style={styles.subtitle}>
           Select a document type to get started with translation
@@ -52,7 +108,7 @@ export default function TranslateScreen() {
             onPress={() => handleOptionPress('PDF')}
             activeOpacity={0.7}>
             <View style={styles.optionItem}>
-              {/* ... icon, text, etc. */}
+              {/* ... Icon, Text ... */}
               <View
                 style={[
                   styles.iconContainer,
@@ -79,6 +135,7 @@ export default function TranslateScreen() {
             onPress={() => handleOptionPress('Image')}
             activeOpacity={0.7}>
             <View style={styles.optionItem}>
+              {/* ... Icon, Text ... */}
               <View
                 style={[
                   styles.iconContainer,
@@ -99,38 +156,12 @@ export default function TranslateScreen() {
               />
             </View>
           </TouchableOpacity>
-
-          {/* Document Option */}
-          {/*   <TouchableOpacity
-            onPress={() => handleOptionPress('Document')}
-            activeOpacity={0.7}>
-            <View style={styles.optionItem}>
-              <View
-                style={[
-                  styles.iconContainer,
-                  {backgroundColor: '#4CAF50'},
-                ]}>
-                <Icon name="file-document-outline" size={24} color="#fff" />
-              </View>
-              <View style={styles.optionTextContainer}>
-                <Text style={styles.optionTitle}>Document</Text>
-                <Text style={styles.optionDescription}>
-                  Upload DOC, DOCX, or TXT files
-                </Text>
-              </View>
-              <Icon
-                name="chevron-right"
-                size={24}
-                color={theme.colors.onSurfaceDisabled}
-              />
-            </View>
-          </TouchableOpacity> */}
         </View>
 
         {/* Scan Text */}
         <Text style={styles.scanText}>Need to scan a physical document?</Text>
 
-        {/* Open Camera Button */}
+        {/* --- Open Camera Button --- calls updated handleOpenCamera */}
         <Button
           mode="contained"
           onPress={handleOpenCamera}
@@ -139,30 +170,22 @@ export default function TranslateScreen() {
           icon="camera-outline">
           Open Camera
         </Button>
-        {/* Add some extra space at the bottom if needed for better scrolling feel */}
-        {/* <View style={{ height: 40 }} /> */}
       </ScrollView>
     </View>
   );
 }
 
-// Styles Definition
+// Styles Definition (Keep existing styles)
 const createStyles = theme =>
   StyleSheet.create({
     container: {
-      flex: 1, // Container takes full screen height
+      flex: 1,
       backgroundColor: theme.colors.background,
     },
-    // Style for the content container WITHIN the ScrollView
     scrollContentContainer: {
-      padding: 20, // Apply padding here
-      // Use paddingBottom instead of adding an empty View
-      paddingBottom: 40, // Add padding at the bottom
+      padding: 20,
+      paddingBottom: 40,
     },
-    // Remove styles.content if not used elsewhere, or keep it without flex: 1
-    // content: {
-    // //  padding: 20, // Padding moved to contentContainerStyle
-    // },
     topImage: {
       width: '100%',
       height: 200,
@@ -230,7 +253,6 @@ const createStyles = theme =>
     cameraButton: {
       paddingVertical: 8,
       borderRadius: 8,
-      // marginBottom: 20 // Add margin if needed before bottom padding kicks in
     },
     cameraButtonLabel: {
       fontSize: 16,
