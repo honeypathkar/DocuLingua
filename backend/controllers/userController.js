@@ -1,10 +1,10 @@
 const UserModel = require("../models/UserModel");
+const DocumentModel = require("../models/DocumentModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const cloudinary = require("cloudinary").v2;
-// const sendEmail = require("../middleware/sendEmail");
-const sendVerificationEmail = require("../middleware/sendEmail");
+const { sendEmailNotification } = require("../middleware/emailServices"); // Import the new service
 
 // --- Signup ---
 const signupUser = async (req, res) => {
@@ -220,31 +220,7 @@ const updateUserAccount = async (req, res) => {
   }
 };
 
-// --- Delete User Account ---
-// Requires authentication (verifyToken middleware)
-const deleteUserAccount = async (req, res) => {
-  const userId = req.userId; // From verifyToken middleware
-
-  try {
-    const deletedUser = await UserModel.findByIdAndDelete(userId);
-
-    if (!deletedUser) {
-      return res.status(404).json({ message: "User not found for deletion" });
-    }
-
-    // Optional: Add logic here to delete associated data (e.g., documents)
-    // await DocumentModel.deleteMany({ userId: userId });
-
-    res.status(200).json({ message: "Account deleted successfully" });
-  } catch (error) {
-    console.error("Delete User Account Error:", error);
-    res
-      .status(500)
-      .json({ message: "Server error deleting account", error: error.message });
-  }
-};
-
-// --- Forgot Password ---
+// --- Send OTP (for Forgot Password) ---
 const sendOtp = async (req, res) => {
   const { email } = req.body;
 
@@ -253,34 +229,47 @@ const sendOtp = async (req, res) => {
   }
 
   try {
-    // Find user by email
     const user = await UserModel.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      // Still send a 200 OK to prevent email enumeration attacks
+      console.log(`Password reset requested for non-existent email: ${email}`);
+      return res.status(200).json({
+        message: "If an account with this email exists, an OTP has been sent.",
+      });
     }
 
-    // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Ensure OTP is string if needed
+    const otpExpiry = Date.now() + 600000; // OTP expires in 10 minutes
 
-    // Save OTP to user model (you might want to add an otp field to your UserModel)
-    user.otp = otp;
-    user.otpExpiry = Date.now() + 3600000; // OTP expires in 1 hour
+    user.otp = otp; // Ensure your UserModel has 'otp' and 'otpExpiry' fields
+    user.otpExpiry = otpExpiry;
     await user.save();
 
-    // Send OTP to user's email
-    await sendVerificationEmail(email, otp);
+    // Send OTP email using the new service
+    const emailSent = await sendEmailNotification(email, "OTP", { otp: otp });
 
-    res.status(200).json({ message: "OTP sent to email" });
+    if (!emailSent) {
+      // Log the error but inform the user generically
+      console.error(`Failed to send OTP email to ${email}`);
+      // Don't reveal the failure explicitly to the user in production
+      return res
+        .status(500)
+        .json({ message: "Error processing request. Please try again later." }); // Or a more generic success message
+    }
+
+    res.status(200).json({
+      message: "If an account with this email exists, an OTP has been sent.",
+    });
   } catch (error) {
-    console.error("Forgot Password Error:", error);
+    console.error("Send OTP Error:", error);
     res.status(500).json({
-      message: "Server error during forgot password",
+      message: "Server error during OTP request",
       error: error.message,
     });
   }
 };
 
-// --- Verify OTP and Reset Password ---
+// --- Verify OTP and Reset Password (Forgot Password Flow) ---
 const forgotPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
 
@@ -291,19 +280,80 @@ const forgotPassword = async (req, res) => {
   }
 
   try {
-    // Find user by email and OTP
-    const user = await UserModel.findOne({ email });
+    const user = await UserModel.findOne({
+      email,
+      otp: otp, // Match the received OTP
+      otpExpiry: { $gt: Date.now() }, // Check if OTP is still valid
+    });
 
     if (!user) {
+      // Generic message for invalid/expired OTP or non-existent user
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired OTP, or user not found." });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update the user's password and clear OTP fields
+    user.password = hashedPassword;
+    user.otp = undefined; // Or null, depending on your schema preference
+    user.otpExpiry = undefined; // Or null
+    await user.save();
+
+    // Send password reset confirmation email (fire and forget - don't block response)
+    sendEmailNotification(email, "PASSWORD_RESET_CONFIRMATION", {
+      name: user.name,
+    }) // Pass name if available
+      .catch((err) =>
+        console.error(
+          `Failed to send password reset confirmation to ${email}:`,
+          err
+        )
+      );
+
+    res.status(200).json({ message: "Password reset successfully" });
+  } catch (error) {
+    console.error("Forgot Password Reset Error:", error);
+    res.status(500).json({
+      message: "Server error during password reset",
+      error: error.message,
+    });
+  }
+};
+
+// --- Change Password (Logged-in User) ---
+const changePassword = async (req, res) => {
+  // Assuming userId is available from auth middleware (req.userId)
+  const userId = req.userId;
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({
+      message: "Please provide old password and new password",
+    });
+  }
+
+  if (oldPassword === newPassword) {
+    return res.status(400).json({
+      message: "New password cannot be the same as the old password.",
+    });
+  }
+
+  try {
+    // Find user by ID
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      // Should not happen if middleware is correct, but good practice
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (user.otp !== parseInt(otp)) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
-
-    if (user.otpExpiry < Date.now()) {
-      return res.status(400).json({ message: "OTP expired" });
+    // Compare provided old password with stored hash
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid old password" });
     }
 
     // Hash the new password
@@ -312,46 +362,115 @@ const forgotPassword = async (req, res) => {
 
     // Update the user's password
     user.password = hashedPassword;
-    user.otp = null;
-    user.otpExpiry = null;
     await user.save();
 
-    res.status(200).json({ message: "Password reset successfully" });
-  } catch (error) {
-    console.error("Verify OTP and Reset Password Error:", error);
-    res.status(500).json({
-      message: "Server error during password reset",
-      error: error.message,
-    });
-  }
-};
+    // Send password change confirmation email (fire and forget)
+    sendEmailNotification(user.email, "PASSWORD_CHANGE_CONFIRMATION", {
+      name: user.name,
+    }).catch((err) =>
+      console.error(
+        `Failed to send password change confirmation to ${user.email}:`,
+        err
+      )
+    );
 
-const changePassword = async (req, res) => {
-  const { email, oldPassword, newPassword } = req.body;
-  if (!email || !oldPassword || !newPassword) {
-    return res.status(400).json({
-      message: "Please provide email, old password, and new password",
-    });
-  }
-  try {
-    // Find user by email
-    const user = await UserModel.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    } // Compare provided old password with stored hash
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid old password" });
-    } // Hash the new password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt); // Update the user's password
-    user.password = hashedPassword;
-    await user.save();
     res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
     console.error("Change Password Error:", error);
     res.status(500).json({
       message: "Server error during password change",
+      error: error.message,
+    });
+  }
+};
+
+// --- Delete User Account ---
+const deleteUserAccount = async (req, res) => {
+  const userId = req.userId; // From verifyToken middleware
+  let userEmail = null; // Variable to store email before deletion
+  let userName = null; // Variable to store name for email personalization
+
+  try {
+    // 1. Find the user *before* deleting to get necessary info
+    const userToDelete = await UserModel.findById(userId);
+
+    if (!userToDelete) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    // Store email and name for notification later
+    userEmail = userToDelete.email;
+    userName = userToDelete.name; // Assuming you have a 'name' field
+
+    // --- Deletion of Associated Data ---
+
+    // 2. Delete Profile Image from Cloudinary (if it exists)
+    const imagePublicId = userToDelete.userImagePublicId;
+    if (imagePublicId) {
+      try {
+        console.log(`Attempting to delete Cloudinary image: ${imagePublicId}`);
+        const deletionResult = await cloudinary.uploader.destroy(imagePublicId);
+        console.log("Cloudinary deletion result:", deletionResult);
+        if (
+          deletionResult.result !== "ok" &&
+          deletionResult.result !== "not found"
+        ) {
+          console.warn(
+            `Cloudinary image deletion may have failed for public_id: ${imagePublicId}. Result: ${deletionResult.result}`
+          );
+        }
+      } catch (cloudinaryError) {
+        console.error(
+          `Error deleting image from Cloudinary (public_id: ${imagePublicId}):`,
+          cloudinaryError
+        );
+        // Log but continue
+      }
+    }
+
+    // 3. Delete Associated Documents
+    try {
+      const deletionResult = await DocumentModel.deleteMany({ userId: userId });
+      console.log(
+        `Deleted ${deletionResult.deletedCount} associated documents for user ${userId}`
+      );
+    } catch (docError) {
+      console.error(
+        `Error deleting associated documents for user ${userId}:`,
+        docError
+      );
+      // Log but continue (or decide to return 500 if critical)
+    }
+
+    // --- Deletion of the User Account ---
+
+    // 4. Delete the user document itself from MongoDB
+    await UserModel.findByIdAndDelete(userId);
+
+    // --- Send Confirmation Email (Fire and Forget) ---
+    if (userEmail) {
+      sendEmailNotification(userEmail, "ACCOUNT_DELETION_CONFIRMATION", {
+        name: userName,
+      }).catch((err) =>
+        console.error(
+          `Failed to send account deletion confirmation to ${userEmail}:`,
+          err
+        )
+      );
+    } else {
+      console.warn(
+        `Could not send deletion confirmation for user ${userId} as email was not retrieved.`
+      );
+    }
+
+    // --- Success Response ---
+    res.status(200).json({
+      message: "Account deleted successfully.", // Simplified message
+    });
+  } catch (error) {
+    // --- Central Error Handling ---
+    console.error("Delete User Account Error:", error);
+    res.status(500).json({
+      message: "Server error during account deletion process",
       error: error.message,
     });
   }
