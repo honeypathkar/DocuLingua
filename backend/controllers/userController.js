@@ -327,8 +327,7 @@ const forgotPassword = async (req, res) => {
 // --- Change Password (Logged-in User) ---
 const changePassword = async (req, res) => {
   // Assuming userId is available from auth middleware (req.userId)
-  const userId = req.userId;
-  const { oldPassword, newPassword } = req.body;
+  const { oldPassword, newPassword, email } = req.body;
 
   if (!oldPassword || !newPassword) {
     return res.status(400).json({
@@ -344,7 +343,7 @@ const changePassword = async (req, res) => {
 
   try {
     // Find user by ID
-    const user = await UserModel.findById(userId);
+    const user = await UserModel.findOne({ email });
     if (!user) {
       // Should not happen if middleware is correct, but good practice
       return res.status(404).json({ message: "User not found" });
