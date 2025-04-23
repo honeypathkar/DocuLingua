@@ -305,7 +305,7 @@ const forgotPassword = async (req, res) => {
 
     // Send password reset confirmation email (fire and forget - don't block response)
     sendEmailNotification(email, "PASSWORD_RESET_CONFIRMATION", {
-      name: user.name,
+      name: user.fullName,
     }) // Pass name if available
       .catch((err) =>
         console.error(
@@ -365,7 +365,7 @@ const changePassword = async (req, res) => {
 
     // Send password change confirmation email (fire and forget)
     sendEmailNotification(user.email, "PASSWORD_CHANGE_CONFIRMATION", {
-      name: user.name,
+      name: user.fullName,
     }).catch((err) =>
       console.error(
         `Failed to send password change confirmation to ${user.email}:`,
@@ -448,7 +448,7 @@ const deleteUserAccount = async (req, res) => {
     // --- Send Confirmation Email (Fire and Forget) ---
     if (userEmail) {
       sendEmailNotification(userEmail, "ACCOUNT_DELETION_CONFIRMATION", {
-        name: userName,
+        name: userToDelete.fullName,
       }).catch((err) =>
         console.error(
           `Failed to send account deletion confirmation to ${userEmail}:`,

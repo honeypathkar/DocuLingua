@@ -113,7 +113,7 @@ const generateEmailContent = (type, data = {}) => {
 
     case "ACCOUNT_DELETION_CONFIRMATION":
       subject = "Your DocuLingua Account Has Been Deleted";
-      greeting = `Goodbye${data.name ? " " + data.name : ""},`;
+      greeting = `Goodbye${data?.name ? " " + data.name : ""},`;
       mainMessage =
         "We confirm that your DocuLingua account and associated data have been permanently deleted as requested.";
       secondaryMessage =
@@ -157,6 +157,7 @@ const generateEmailContent = (type, data = {}) => {
  * @returns {Promise<boolean>} - True if email was sent successfully, false otherwise.
  */
 const sendEmailNotification = async (recipientEmail, emailType, data = {}) => {
+  console.log(data);
   // Check if transporter is configured
   if (!transporter) {
     console.error(
