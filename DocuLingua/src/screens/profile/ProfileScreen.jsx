@@ -37,8 +37,9 @@ import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 
 import AppHeader from '../../components/AppHeader'; // Adjust path if needed
 import {useThemeContext} from '../../context/ThemeContext'; // Adjust path if needed
-import useUserDetails from '../../hooks/useUserDetails';
+// import useUserDetails from '../../store/userStore';
 import {DeleteAccountUrl} from '../../../API';
+import useUserStore from '../../store/userStore';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -173,7 +174,7 @@ export default function ProfileScreen() {
   const paperTheme = useTheme();
   const styles = useMemo(() => createStyles(paperTheme), [paperTheme]);
   const navigation = useNavigation();
-  const {user, loading, error, fetchDetails} = useUserDetails(); // <-- Get state and function from hook
+  const {user, loading, error, fetchDetails} = useUserStore();
 
   // State variables... (user, loading, refreshing, etc.)
   // const [user, setUser] = useState(null);
