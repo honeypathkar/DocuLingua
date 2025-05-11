@@ -5,6 +5,8 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const cloudinary = require("cloudinary").v2;
 const { sendEmailNotification } = require("../middleware/emailServices"); // Import the new service
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // --- Signup ---
 const signupUser = async (req, res) => {
@@ -490,6 +492,55 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+const googleLoginRegister = async (req, res) => {
+  const { idToken } = req.body;
+  if (!idToken) {
+    return res.status(400).json({ message: "ID token is required" });
+  }
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, picture, sub: googleId } = payload;
+
+    let user = await UserModel.findOne({ email });
+    if (!user) {
+      // User doesn't exist, create a new one
+      user = new UserModel({
+        fullName: name,
+        email,
+        googleId,
+        userImage: picture,
+        // password: null, // No password for Google users
+      });
+      await user.save();
+    }
+
+    // Generate JWT token
+    const tokenPayload = { userId: user._id };
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET); // Token expires in 1 hour
+
+    // Respond with token and user info (excluding password)
+    res.status(200).json({
+      message: "Google login/register successful",
+      token,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        // Include other non-sensitive fields if needed
+      },
+    });
+  } catch (error) {
+    console.error("Google Auth Error:", error);
+    res.status(401).json({ error: "Invalid Google token" });
+  }
+};
+
 module.exports = {
   signupUser,
   loginUser,
@@ -501,4 +552,5 @@ module.exports = {
   sendOtp,
   changePassword,
   getAllUsers,
+  googleLoginRegister,
 };
