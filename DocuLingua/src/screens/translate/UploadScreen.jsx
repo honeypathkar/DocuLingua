@@ -19,7 +19,8 @@ import DocumentPicker, {
   pick,
 } from '@react-native-documents/picker';
 
-import {launchImageLibrary} from 'react-native-image-picker';
+// import {launchImageLibrary} from 'react-native-image-picker';
+import ImageCropPicker from 'react-native-image-crop-picker';
 
 const uploadConfig = {maxSizeMB: 50};
 
@@ -108,42 +109,58 @@ export default function UploadScreen() {
   }, [capturedImageData, processSelectedFile]); // Dependencies
 
   // --- Picker Handlers ---
+
   const handleLaunchGallery = useCallback(async () => {
-    hideModal(); // Ensure modal is hidden
-    const options = {
-      mediaType: 'photo', // Only allow photo selection
-      selectionLimit: 1, // Allow only one image
-      quality: 1.0, // Use full quality
-    };
+    hideModal(); // Close the selection modal first
+
     try {
-      const result = await launchImageLibrary(options);
-      if (result.didCancel) {
-        console.log('User cancelled gallery picker');
-      } else if (result.errorCode) {
-        console.error('Gallery Error:', result.errorCode, result.errorMessage);
-        Alert.alert(
-          'Gallery Error',
-          result.errorMessage || 'Could not open gallery.',
-        );
-      } else if (result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        // Process the selected gallery image
+      const image = await ImageCropPicker.openPicker({
+        mediaType: 'photo',
+        cropping: true,
+        // width: 500,
+        // height: 500,
+        compressImageQuality: 0.7,
+        cropperToolbarTitle: 'Crop Image',
+        cropperToolbarColor: theme.colors.background,
+        cropperToolbarWidgetColor: theme.colors.onSurface,
+        cropperActiveWidgetColor: theme.colors.primary,
+        cropperStatusBarColor: theme.colors.background,
+      });
+
+      if (image) {
+        console.log('Selected image from gallery:', image.path);
+
+        if (image.size && image.size > uploadConfig.maxSizeMB * 1024 * 1024) {
+          Alert.alert(
+            'Image Too Large',
+            `Please select an image smaller than ${
+              1024 * 1024 * uploadConfig.maxSizeMB
+            } MB.`,
+          );
+          return;
+        }
+
         processSelectedFile({
-          uri: asset.uri,
-          name: asset.fileName,
-          type: asset.type,
-          size: asset.fileSize,
+          uri: image.path,
+          name: image.filename || 'selected.jpg',
+          type: image.mime || 'image/jpeg',
+          size: image.size,
         });
       } else {
-        console.warn(
-          'Gallery finished without assets, cancellation, or error.',
+        console.warn('No image returned from picker.');
+      }
+    } catch (error) {
+      if (error.code === 'E_PICKER_CANCELLED') {
+        console.log('User cancelled gallery picker');
+      } else {
+        console.error('Gallery Picker Error:', error);
+        Alert.alert(
+          'Gallery Picker Error',
+          error.message || 'An error occurred while selecting image.',
         );
       }
-    } catch (err) {
-      console.error('Error launching gallery:', err);
-      Alert.alert('Error', 'An error occurred while opening the gallery.');
     }
-  }, [processSelectedFile, hideModal]); // Dependencies
+  }, [hideModal, processSelectedFile, theme]);
 
   const handleBrowseDocuments = async () => {
     hideModal(); // Ensure modal is hidden

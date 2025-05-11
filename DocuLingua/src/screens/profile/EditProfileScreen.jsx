@@ -26,7 +26,7 @@ import {launchImageLibrary} from 'react-native-image-picker';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {UpdateAccountUrl} from '../../../API';
-
+import ImageCropPicker from 'react-native-image-crop-picker';
 // Adjust the path to your default placeholder image
 const defaultUserImage = require('../../assets/images/no-user-image.png'); // <--- ADJUST PATH IF NEEDED
 
@@ -86,47 +86,48 @@ const EditProfileScreen = () => {
   const handleChoosePhoto = useCallback(() => {
     if (isUpdating) return; // Prevent opening picker during update
 
-    launchImageLibrary(
-      {
-        mediaType: 'photo',
-        quality: 0.7,
-        includeBase64: false,
-      },
-      response => {
-        if (response.didCancel) {
-          console.log('User cancelled image picker');
-          return;
-        }
-        if (response.errorCode) {
-          console.log('ImagePicker Error: ', response.errorMessage);
+    ImageCropPicker.openPicker({
+      mediaType: 'photo',
+      cropping: true,
+      width: 500,
+      height: 500,
+      compressImageQuality: 0.7,
+      cropperToolbarTitle: 'Crop Image',
+      cropperToolbarColor: theme.colors.background,
+      cropperToolbarWidgetColor: theme.colors.onSurface,
+      cropperActiveWidgetColor: theme.colors.primary,
+      cropperStatusBarColor: theme.colors.background,
+    })
+      .then(response => {
+        const selectedUri = response.path;
+        const selectedSize = response.size;
+
+        console.log('Selected Image Size:', selectedSize, 'bytes');
+
+        if (selectedSize && selectedSize > MAX_IMAGE_SIZE_BYTES) {
           Alert.alert(
-            'Image Picker Error',
-            response.errorMessage || 'Could not select image.',
+            'Image Too Large',
+            `Please select an image smaller than ${MAX_IMAGE_SIZE_MB} MB.`,
           );
           return;
         }
-        if (response.assets && response.assets.length > 0) {
-          const selectedAsset = response.assets[0];
-          const selectedUri = selectedAsset.uri;
-          const selectedSize = selectedAsset.fileSize;
 
-          console.log('Selected Image Size:', selectedSize, 'bytes');
-
-          if (selectedSize && selectedSize > MAX_IMAGE_SIZE_BYTES) {
-            Alert.alert(
-              'Image Too Large',
-              `Please select an image smaller than ${MAX_IMAGE_SIZE_MB} MB.`,
-            );
-            return; // Stop if too large
-          }
-
-          setProfilePicUri(selectedUri); // Update display URI
-          setSelectedImageResponse(selectedAsset); // Store selected asset info
-          console.log('Image selected (size OK):', selectedUri);
+        setProfilePicUri(selectedUri); // To preview selected image
+        setSelectedImageResponse(response); // Store full response for upload
+        console.log('Image selected (size OK):', selectedUri);
+      })
+      .catch(error => {
+        if (error.code === 'E_PICKER_CANCELLED') {
+          console.log('User cancelled image picker');
+        } else {
+          console.log('ImagePicker Error: ', error);
+          Alert.alert(
+            'Image Picker Error',
+            error.message || 'Could not select image.',
+          );
         }
-      },
-    );
-  }, [isUpdating]); // Dependency: isUpdating
+      });
+  }, [isUpdating]);
 
   const handleUpdate = useCallback(async () => {
     if (!userToken) {
@@ -148,14 +149,13 @@ const EditProfileScreen = () => {
 
     const formData = new FormData();
     formData.append('fullName', fullName.trim());
-    // languagesArray.forEach(lang => formData.append('language[]', lang));
     languagesArray.forEach(lang => formData.append('language', lang));
 
-    if (selectedImageResponse && selectedImageResponse.uri !== initialImage) {
+    if (selectedImageResponse && selectedImageResponse.path !== initialImage) {
       formData.append('userImage', {
-        uri: selectedImageResponse.uri,
-        type: selectedImageResponse.type || 'image/jpeg',
-        name: selectedImageResponse.fileName || 'profile.jpg',
+        uri: selectedImageResponse.path, // <--- Corrected from `uri` to `path`
+        type: selectedImageResponse.mime || 'image/jpeg',
+        name: selectedImageResponse.filename || 'profile.jpg',
       });
     }
 
@@ -168,13 +168,13 @@ const EditProfileScreen = () => {
         timeout: 15000,
       });
 
-      // Alert.alert('Success', 'Profile updated successfully!');
       ToastAndroid.show('Profile Updated Successfully.', ToastAndroid.SHORT);
+
       if (navigation.canGoBack()) {
         navigation.goBack();
       }
+
       setSelectedImageResponse(null);
-      // navigation.goBack();
     } catch (error) {
       console.error('Update Error:', error);
       Alert.alert(
@@ -184,7 +184,14 @@ const EditProfileScreen = () => {
     } finally {
       setIsUpdating(false);
     }
-  }, [userToken, fullName, languagesInput, selectedImageResponse, navigation]);
+  }, [
+    userToken,
+    fullName,
+    languagesInput,
+    selectedImageResponse,
+    navigation,
+    initialImage,
+  ]);
 
   const handleGoBack = useCallback(() => {
     if (navigation.canGoBack()) {

@@ -12,6 +12,7 @@ import {Text, useTheme, Button} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useNavigation} from '@react-navigation/native';
 import AppHeader from '../../components/AppHeader';
+import ImageCropPicker from 'react-native-image-crop-picker';
 
 // --- Import Camera functionalities ---
 import {
@@ -24,6 +25,7 @@ export default function TranslateScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const navigation = useNavigation();
+  const MAX_IMAGE_SIZE_MB = 10; // Set maximum image size to 5 MB
 
   const handleOptionPress = docType => {
     console.log(`Selected option: ${docType}`);
@@ -34,56 +36,55 @@ export default function TranslateScreen() {
   // --- Updated Camera Handler ---
   const handleOpenCamera = async () => {
     console.log('Open Camera pressed');
-    const options = {
-      mediaType: 'photo', // Only allow taking photos
-      quality: 0.8, // Reduce quality slightly for faster uploads (adjust as needed)
-      saveToPhotos: true, // Optional: Saves the photo to the public gallery (requires permissions)
-    };
 
     try {
-      const result = await launchCamera(options);
+      const image = await ImageCropPicker.openCamera({
+        mediaType: 'photo',
+        cropping: true,
+        compressImageQuality: 0.7,
+        cropperToolbarTitle: 'Crop Image',
+        cropperToolbarColor: theme.colors.background,
+        cropperToolbarWidgetColor: theme.colors.onSurface,
+        cropperActiveWidgetColor: theme.colors.primary,
+        cropperStatusBarColor: theme.colors.background,
+      });
 
-      if (result.didCancel) {
-        console.log('User cancelled camera');
-        return; // Exit if the user cancelled
-      }
-      if (result.errorCode) {
-        console.error('Camera Error:', result.errorCode, result.errorMessage);
-        Alert.alert(
-          'Camera Error',
-          result.errorMessage || 'Could not open camera.',
-        );
-        return; // Exit on error
-      }
-      if (result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        console.log('Captured image asset:', JSON.stringify(asset, null, 2));
+      if (image) {
+        console.log('Captured and cropped image:', image.path);
 
-        // --- Prepare the file data structure expected by UploadScreen ---
         const fileData = {
-          uri: asset.uri,
-          // Use fileName if available, otherwise generate one
-          name: asset.fileName || `cam_${Date.now()}.jpg`,
-          // Use type if available, otherwise default to jpeg
-          type: asset.type || 'image/jpeg',
-          size: asset.fileSize, // Size might be null sometimes
+          uri: image.path,
+          name: image.filename || `cam_${Date.now()}.jpg`,
+          type: image.mime || 'image/jpeg',
+          size: image.size,
         };
 
-        // --- Navigate to UploadScreen ---
-        // Pass 'Image' as documentType AND the captured image data
+        if (fileData.size && fileData.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+          Alert.alert(
+            'Image Too Large',
+            `Please select an image smaller than ${MAX_IMAGE_SIZE_MB} MB.`,
+          );
+          return;
+        }
+
         navigation.getParent()?.navigate('UploadScreen', {
-          documentType: 'Image', // Explicitly set type to Image
-          capturedImageData: fileData, // Pass the captured image details
+          documentType: 'Image',
+          capturedImageData: fileData,
         });
       } else {
-        // This case might occur if assets array is empty unexpectedly
-        console.warn('Camera finished without assets, cancellation, or error.');
-        Alert.alert('Error', 'Failed to capture image. Please try again.');
+        console.warn('No image returned from camera');
+        Alert.alert('Error', 'Failed to capture image.');
       }
-    } catch (err) {
-      // Catch any other unexpected errors during launch
-      console.error('Error launching camera:', err);
-      Alert.alert('Error', 'An error occurred while opening the camera.');
+    } catch (error) {
+      if (error.code === 'E_PICKER_CANCELLED') {
+        console.log('User cancelled camera');
+      } else {
+        console.error('Camera Picker Error:', error);
+        Alert.alert(
+          'Camera Error',
+          error.message || 'An error occurred while opening the camera.',
+        );
+      }
     }
   };
 
