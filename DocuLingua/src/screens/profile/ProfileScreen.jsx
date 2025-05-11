@@ -277,7 +277,7 @@ export default function ProfileScreen() {
         headers: {Authorization: `Bearer ${userToken}`},
       });
       if (response.status === 200 || response.status === 204) {
-        /* ... handle success ... */ setIsModalVisible(false);
+        setIsModalVisible(false);
         ToastAndroid.show('Account Deleted Successfully.', ToastAndroid.SHORT);
         handleLogout();
       } else {

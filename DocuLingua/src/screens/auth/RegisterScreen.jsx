@@ -1,5 +1,5 @@
 // screens/auth/RegisterScreen.jsx
-import React, {useState, useMemo} from 'react';
+import React, {useState, useMemo, useEffect} from 'react';
 import {
   StyleSheet,
   View,
@@ -24,6 +24,8 @@ import {
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SignupUrl} from '../../../API'; // Import API endpoint
+import {GoogleSignin} from '@react-native-google-signin/google-signin';
+import {GoogleLoginSignupUrl} from '../../../API'; // Import Google API endpoint
 
 const RegisterScreen = ({navigation}) => {
   // --- State ---
@@ -36,6 +38,7 @@ const RegisterScreen = ({navigation}) => {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false); // <-- Add loading state
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -150,6 +153,72 @@ const RegisterScreen = ({navigation}) => {
       navigation.navigate('Login');
     }
   };
+
+  const handleLoginError = message => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('Login Failed', message);
+    }
+  };
+
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId:
+        '816661688057-jun6j7fpmbcs4kb1ojacnbb81lhrkgm6.apps.googleusercontent.com',
+    });
+  }, []);
+
+  async function onGoogleButtonPress() {
+    console.log('Google Sign-In Button Pressed');
+    setGoogleLoading(true);
+
+    try {
+      await GoogleSignin.hasPlayServices({showPlayServicesUpdateDialog: true});
+      await GoogleSignin.signOut(); // Ensures a fresh sign-in
+      const result = await GoogleSignin.signIn();
+
+      console.log('Google Sign-In Response:', result);
+
+      const idToken = result?.data?.idToken;
+      if (!idToken) throw new Error('No ID token found');
+
+      console.log('ID Token:', idToken);
+
+      const response = await axios.post(
+        GoogleLoginSignupUrl,
+        {
+          idToken,
+        },
+        {timeout: 10000},
+      );
+      console.log('Google Login Response:', response);
+      if (response.status === 200 && response.data?.token) {
+        const token = response.data.token;
+        await AsyncStorage.setItem('userToken', token);
+        // await AsyncStorage.setItem('rememberMe', JSON.stringify(rememberMe));
+        ToastAndroid.show('Google Login Successful.', ToastAndroid.SHORT);
+        navigation.replace('MainApp');
+      } else {
+        const errorMessage =
+          response.data?.message || 'Google Sign-In failed. Please try again.';
+        handleLoginError(errorMessage);
+      }
+    } catch (error) {
+      console.error('Google Sign-In Error:', error);
+
+      if (error.code === 'SIGN_IN_CANCELLED') {
+        ToastAndroid.show('Google Sign-In Cancelled', ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show(
+          `Google Sign-In Failed: ${error.message || 'Please try again.'}`,
+          ToastAndroid.LONG,
+        );
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -304,7 +373,48 @@ const RegisterScreen = ({navigation}) => {
                 {/* Text automatically handled by loading prop */}
                 Create Account
               </Button>
-              {/* --- End Updated Button --- */}
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginVertical: 16,
+                }}>
+                <View
+                  style={{
+                    height: 1,
+                    width: '40%',
+                    backgroundColor: theme.colors.onSurfaceVariant,
+                  }}
+                />
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    marginHorizontal: 8,
+                    color: theme.colors.onSurfaceVariant,
+                  }}>
+                  Or
+                </Text>
+                <View
+                  style={{
+                    height: 1,
+                    width: '40%',
+                    backgroundColor: theme.colors.onSurfaceVariant,
+                  }}
+                />
+              </View>
+
+              <Button
+                mode="contained"
+                icon="google"
+                onPress={onGoogleButtonPress}
+                style={styles.registerButton}
+                labelStyle={styles.registerButtonText}
+                disabled={googleLoading}
+                loading={googleLoading}>
+                Continue with Google
+              </Button>
 
               {/* Login Link... Disable while loading */}
               <View style={styles.loginLinkContainer}>

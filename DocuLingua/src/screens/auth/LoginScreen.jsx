@@ -23,7 +23,7 @@ import {
 
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {LoginUrl} from '../../../API';
+import {GoogleLoginSignupUrl, LoginUrl} from '../../../API';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 
 const LoginScreen = ({navigation}) => {
@@ -112,7 +112,25 @@ const LoginScreen = ({navigation}) => {
 
       console.log('ID Token:', idToken);
 
-      ToastAndroid.show('Google Sign-In Successful', ToastAndroid.SHORT);
+      const response = await axios.post(
+        GoogleLoginSignupUrl,
+        {
+          idToken,
+        },
+        {timeout: 10000},
+      );
+      console.log('Google Login Response:', response);
+      if (response.status === 200 && response.data?.token) {
+        const token = response.data.token;
+        await AsyncStorage.setItem('userToken', token);
+        await AsyncStorage.setItem('rememberMe', JSON.stringify(rememberMe));
+        ToastAndroid.show('Google Login Successful.', ToastAndroid.SHORT);
+        navigation.replace('MainApp');
+      } else {
+        const errorMessage =
+          response.data?.message || 'Google Sign-In failed. Please try again.';
+        handleLoginError(errorMessage);
+      }
     } catch (error) {
       console.error('Google Sign-In Error:', error);
 
@@ -248,6 +266,37 @@ const LoginScreen = ({navigation}) => {
                 loading={loading}>
                 Login
               </Button>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginVertical: 16,
+                }}>
+                <View
+                  style={{
+                    height: 1,
+                    width: '40%',
+                    backgroundColor: theme.colors.onSurfaceVariant,
+                  }}
+                />
+                <Text
+                  variant="bodyMedium"
+                  style={{
+                    marginHorizontal: 8,
+                    color: theme.colors.onSurfaceVariant,
+                  }}>
+                  Or
+                </Text>
+                <View
+                  style={{
+                    height: 1,
+                    width: '40%',
+                    backgroundColor: theme.colors.onSurfaceVariant,
+                  }}
+                />
+              </View>
 
               <Button
                 mode="contained"

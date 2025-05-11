@@ -11,3 +11,4 @@ export const DeleteAccountUrl = `${BaseURL}/users/me`;
 export const ChangePasswordUrl = `${BaseURL}/users/change-password`;
 export const SendOtpUrl = `${BaseURL}/users/sendOtp`;
 export const ForgotPasswordUrl = `${BaseURL}/users/forgot-password`;
+export const GoogleLoginSignupUrl = `${BaseURL}/users/google`;
