@@ -91,7 +91,7 @@ const EditProfileScreen = () => {
       cropping: true,
       width: 500,
       height: 500,
-      compressImageQuality: 0.7,
+      compressImageQuality: 1,
       cropperToolbarTitle: 'Crop Image',
       cropperToolbarColor: theme.colors.background,
       cropperToolbarWidgetColor: theme.colors.onSurface,

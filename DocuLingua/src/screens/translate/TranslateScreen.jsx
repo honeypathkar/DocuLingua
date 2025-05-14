@@ -41,7 +41,7 @@ export default function TranslateScreen() {
       const image = await ImageCropPicker.openCamera({
         mediaType: 'photo',
         cropping: true,
-        compressImageQuality: 0.7,
+        compressImageQuality: 1,
         cropperToolbarTitle: 'Crop Image',
         cropperToolbarColor: theme.colors.background,
         cropperToolbarWidgetColor: theme.colors.onSurface,

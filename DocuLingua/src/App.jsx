@@ -26,6 +26,7 @@ import ChangePasswordScreen from './screens/auth/ChangePasswordScreen';
 
 import {ThemeProvider, useThemeContext} from './context/ThemeContext'; // Adjust path if needed
 import {LightTheme, DarkTheme} from './theme/theme'; // Adjust path if needed
+import useUserStore from './store/userStore';
 
 const Stack = createNativeStackNavigator();
 
@@ -175,6 +176,10 @@ function AppContent() {
     return null;
     // Example: return <SplashScreen />;
   }
+
+  // useEffect(() => {
+  //   fetchDetails();
+  // }, []);
 
   // Render navigator only when loading is finished and initial route is set
   return (

@@ -26,6 +26,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {SignupUrl} from '../../../API'; // Import API endpoint
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import {GoogleLoginSignupUrl} from '../../../API'; // Import Google API endpoint
+import useUserStore from '../../store/userStore';
+import {GOOGLE_CLIENT_ID} from '@env';
 
 const RegisterScreen = ({navigation}) => {
   // --- State ---
@@ -39,6 +41,7 @@ const RegisterScreen = ({navigation}) => {
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false); // <-- Add loading state
   const [googleLoading, setGoogleLoading] = useState(false);
+  const {fetchDetails} = useUserStore();
 
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -65,14 +68,6 @@ const RegisterScreen = ({navigation}) => {
       }
       return;
     }
-    // if (!agreeToTerms) {
-    //   Alert.alert(
-    //     'Terms Required',
-    //     'Please agree to the Terms of Service and Privacy Policy.',
-    //   );
-    //   return;
-    // }
-    // --- End Validation ---
 
     setLoading(true); // <-- Set loading true
     try {
@@ -102,6 +97,7 @@ const RegisterScreen = ({navigation}) => {
 
         // Replace stack with MainApp so user can't go back to Register/Login easily
         navigation.reset({index: 0, routes: [{name: 'MainApp'}]});
+        fetchDetails();
       } else {
         // Handle cases where API returns success status but indicates failure logically
         const errorMessage =
@@ -164,8 +160,7 @@ const RegisterScreen = ({navigation}) => {
 
   useEffect(() => {
     GoogleSignin.configure({
-      webClientId:
-        '816661688057-jun6j7fpmbcs4kb1ojacnbb81lhrkgm6.apps.googleusercontent.com',
+      webClientId: GOOGLE_CLIENT_ID,
     });
   }, []);
 
@@ -199,6 +194,7 @@ const RegisterScreen = ({navigation}) => {
         // await AsyncStorage.setItem('rememberMe', JSON.stringify(rememberMe));
         ToastAndroid.show('Google Login Successful.', ToastAndroid.SHORT);
         navigation.replace('MainApp');
+        fetchDetails();
       } else {
         const errorMessage =
           response.data?.message || 'Google Sign-In failed. Please try again.';

@@ -25,6 +25,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {GoogleLoginSignupUrl, LoginUrl} from '../../../API';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
+import useUserStore from '../../store/userStore';
+import {GOOGLE_CLIENT_ID} from '@env';
 
 const LoginScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
@@ -35,6 +37,7 @@ const LoginScreen = ({navigation}) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const {fetchDetails} = useUserStore();
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -56,6 +59,7 @@ const LoginScreen = ({navigation}) => {
         await AsyncStorage.setItem('rememberMe', JSON.stringify(rememberMe));
         ToastAndroid.show('Login Successful.', ToastAndroid.SHORT);
         navigation.replace('MainApp');
+        fetchDetails();
       } else {
         const errorMessage = response.data?.message || 'Invalid Credentials';
         handleLoginError(errorMessage);
@@ -91,8 +95,7 @@ const LoginScreen = ({navigation}) => {
 
   useEffect(() => {
     GoogleSignin.configure({
-      webClientId:
-        '816661688057-jun6j7fpmbcs4kb1ojacnbb81lhrkgm6.apps.googleusercontent.com',
+      webClientId: GOOGLE_CLIENT_ID,
     });
   }, []);
 
@@ -123,9 +126,10 @@ const LoginScreen = ({navigation}) => {
       if (response.status === 200 && response.data?.token) {
         const token = response.data.token;
         await AsyncStorage.setItem('userToken', token);
-        await AsyncStorage.setItem('rememberMe', JSON.stringify(rememberMe));
+        await AsyncStorage.setItem('rememberMe', JSON.stringify(true));
         ToastAndroid.show('Google Login Successful.', ToastAndroid.SHORT);
         navigation.replace('MainApp');
+        fetchDetails();
       } else {
         const errorMessage =
           response.data?.message || 'Google Sign-In failed. Please try again.';
