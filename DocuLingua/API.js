@@ -1,13 +1,11 @@
-// DocuLingua/API.js
+import {API_URL} from '@env';
 
-// Assuming you have a BaseURL defined, e.g.,
-const BaseURL = 'https://api-docu-lingua.vercel.app/auth/v1'; // Replace with your actual backend URL
-
-export const LoginUrl = `${BaseURL}/users/login`;
-export const SignupUrl = `${BaseURL}/users/signup`;
-export const GetUserDetailsUrl = `${BaseURL}/users/me`;
-export const UpdateAccountUrl = `${BaseURL}/users/me`;
-export const DeleteAccountUrl = `${BaseURL}/users/me`;
-export const ChangePasswordUrl = `${BaseURL}/users/change-password`;
-export const SendOtpUrl = `${BaseURL}/users/sendOtp`;
-export const ForgotPasswordUrl = `${BaseURL}/users/forgot-password`;
+export const LoginUrl = `${API_URL}/users/login`;
+export const SignupUrl = `${API_URL}/users/signup`;
+export const GetUserDetailsUrl = `${API_URL}/users/me`;
+export const UpdateAccountUrl = `${API_URL}/users/me`;
+export const DeleteAccountUrl = `${API_URL}/users/me`;
+export const ChangePasswordUrl = `${API_URL}/users/change-password`;
+export const SendOtpUrl = `${API_URL}/users/sendOtp`;
+export const ForgotPasswordUrl = `${API_URL}/users/forgot-password`;
+export const GoogleLoginSignupUrl = `${API_URL}/users/google`;

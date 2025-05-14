@@ -12,7 +12,7 @@ import {
   PERMISSIONS,
   RESULTS,
 } from 'react-native-permissions';
-import {Platform, Linking, Alert} from 'react-native'; // Import Platform, Linking, Alert
+import {Platform, Linking, Alert, StatusBar} from 'react-native'; // Import Platform, Linking, Alert
 
 import WelcomeScreen from './screens/auth/WelcomeScreen';
 import BottomTabNavigator from './navigators/BottomTabNavigator';
@@ -26,6 +26,7 @@ import ChangePasswordScreen from './screens/auth/ChangePasswordScreen';
 
 import {ThemeProvider, useThemeContext} from './context/ThemeContext'; // Adjust path if needed
 import {LightTheme, DarkTheme} from './theme/theme'; // Adjust path if needed
+import useUserStore from './store/userStore';
 
 const Stack = createNativeStackNavigator();
 
@@ -176,9 +177,17 @@ function AppContent() {
     // Example: return <SplashScreen />;
   }
 
+  // useEffect(() => {
+  //   fetchDetails();
+  // }, []);
+
   // Render navigator only when loading is finished and initial route is set
   return (
     <PaperProvider theme={paperTheme}>
+      <StatusBar
+        backgroundColor={paperTheme.colors.background}
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+      />
       <NavigationContainer>
         {/* Ensure initialRouteName is not null before rendering Stack.Navigator */}
         {initialRouteName && (

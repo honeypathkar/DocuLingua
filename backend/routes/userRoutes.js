@@ -10,6 +10,7 @@ const {
   forgotPassword,
   getAllUsers,
   sendOtp,
+  googleLoginRegister,
 } = require("../controllers/userController");
 const verifyToken = require("../middleware/verifyToken");
 
@@ -41,5 +42,7 @@ router.post("/sendOtp", sendOtp);
 
 // POST /api/users/verify-otp-and-reset-password - Verify OTP and reset password
 router.post("/forgot-password", forgotPassword);
+
+router.post("/google", googleLoginRegister);
 
 module.exports = router;

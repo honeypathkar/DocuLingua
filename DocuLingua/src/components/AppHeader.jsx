@@ -15,7 +15,8 @@ import {
 import {Appbar, useTheme, Searchbar, Menu, Avatar} from 'react-native-paper';
 import {useNavigation} from '@react-navigation/native'; // Standard hook call for JSX
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import useUserDetails from '../hooks/useUserDetails';
+import useUserStore from '../store/userStore';
+// import useUserDetails from '../store/userStore';
 
 const defaultUserImageSource = require('../assets/images/no-user-image.png'); // Verify path
 
@@ -27,13 +28,13 @@ export default function AppHeader({showSearchIcon = false}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false);
 
-  const {user, loading, error, fetchDetails} = useUserDetails(); // <-- Use the hook
+  const {user, loading, error} = useUserStore(); // <-- Use the hook
   LogBox.ignoreAllLogs();
 
-  useEffect(() => {
-    console.log('AppHeader mounted, fetching user details...');
-    fetchDetails();
-  }, [fetchDetails]); // fetchDetails is stable due to useCallback in the hook
+  // useEffect(() => {
+  //   console.log('AppHeader mounted, fetching user details...');
+  //   fetchDetails();
+  // }, [fetchDetails]); // fetchDetails is stable due to useCallback in the hook
 
   useEffect(() => {
     if (error && error.type === 'AUTH') {

@@ -19,7 +19,7 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: false,
       // Consider adding password hashing logic here or in a pre-save hook
     },
     userImage: {

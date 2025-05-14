@@ -1,5 +1,5 @@
 // screens/HomeScreen.js
-import React, {useState, useMemo} from 'react';
+import React, {useState, useMemo, useEffect} from 'react';
 import {
   StyleSheet,
   View,
@@ -22,6 +22,7 @@ import AppHeader from '../../components/AppHeader';
 
 // --- Navigation Imports ---
 import {useNavigation} from '@react-navigation/native';
+import useUserStore from '../../store/userStore';
 
 // Placeholder data for the file list
 const filesData = [
@@ -66,6 +67,11 @@ export default function HomeScreen() {
   const theme = useTheme();
   const [listTab, setListTab] = useState('recent');
   const navigation = useNavigation(); // Use navigation hook
+  const {fetchDetails} = useUserStore();
+
+  useEffect(() => {
+    fetchDetails();
+  }, []);
 
   // --- Create Styles INSIDE the component ---
   const styles = useMemo(() => createStyles(theme), [theme]); // Pass theme
