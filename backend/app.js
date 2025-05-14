@@ -4,7 +4,7 @@ require("dotenv").config();
 const userRoutes = require("./routes/userRoutes");
 const cors = require("cors");
 const fileUpload = require("express-fileupload"); // <-- import this
-const documentsRoues = require("./routes/documentRoutes");
+const documentRoutes = require("./routes/documentRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -42,7 +42,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/auth/v1/users", userRoutes);
-app.use("/auth/v1/documents", documentsRoues);
+app.use("/auth/v1/documents", documentRoutes);
 
 connectDB();
 

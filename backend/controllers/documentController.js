@@ -36,22 +36,27 @@ const upload = multer({
     }
 });
 
-//upload route
+//controller function for uploading documents
 
-router.post('./upload/', upload.single('documents'), (req, res) => {
-    try{
-        const filePaths = req.files.map(file => path.join('./uploads/', file.filename));
-        res.status(200).json({
-            message: 'Files uploaded successfully',
-            files: req.files.map((file, index) => ({
-                ...file,
-                path: filePaths[index],
-            })),
-        });
-    } catch (error) {
-        res.status(500).json({error: error.message});
-    }
-});
+const uploadDocument = (req, res) => {
+    upload.single("documents")(req, res, (err) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        try {
+            const filePath = path.join("./uploads/", req.file.filename);
+            res.status(200).json({
+                message: "File uploaded successfully",
+                file: {
+                    ...req.file,
+                    path: filePath,
+                },
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+};
 
 //exporting the router
 
