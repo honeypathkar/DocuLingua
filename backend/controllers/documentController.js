@@ -109,4 +109,63 @@ const deleteDocument = async (req, res) => {
   }
 };
 
-module.exports = { uploadDocument, deleteDocument };
+const documentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    if (!id) {
+      return res.status(400).json({ message: "Document ID is required" });
+    }
+
+    const document = await DocumentModel.findById(id);
+
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (document.userId.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized access to this document" });
+    }
+
+    return res.status(200).json(document);
+  } catch (error) {
+    console.error("Error fetching document:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const getAllDocuments = async (req, res) => {
+  try {
+    const documents = await DocumentModel.find();
+    return res.status(200).json({ message: "All documents", data: documents });
+  } catch (error) {
+    console.error("Error fetching all documents:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ✅ GET /user/documents - Get all documents created by logged-in user
+const getUserDocuments = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const documents = await DocumentModel.find({ userId });
+    return res
+      .status(200)
+      .json({ message: "Document by logged in user", data: documents });
+  } catch (error) {
+    console.error("Error fetching user documents:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+module.exports = {
+  uploadDocument,
+  deleteDocument,
+  documentById,
+  getAllDocuments,
+  getUserDocuments,
+};

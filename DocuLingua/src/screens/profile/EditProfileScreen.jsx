@@ -91,7 +91,7 @@ const EditProfileScreen = () => {
       cropping: true,
       width: 500,
       height: 500,
-      compressImageQuality: 1,
+      compressImageQuality: 0.7,
       cropperToolbarTitle: 'Crop Image',
       cropperToolbarColor: theme.colors.background,
       cropperToolbarWidgetColor: theme.colors.onSurface,
@@ -160,7 +160,7 @@ const EditProfileScreen = () => {
     }
 
     try {
-      const response = await axios.put(UpdateAccountUrl, formData, {
+      const response = await axios.patch(UpdateAccountUrl, formData, {
         headers: {
           Authorization: `Bearer ${userToken}`,
           'Content-Type': 'multipart/form-data',
@@ -177,10 +177,7 @@ const EditProfileScreen = () => {
       setSelectedImageResponse(null);
     } catch (error) {
       console.error('Update Error:', error);
-      Alert.alert(
-        'Update Failed',
-        error.response?.data?.message || error.message,
-      );
+      ToastAndroid.show('Something Went wrong !', ToastAndroid.SHORT);
     } finally {
       setIsUpdating(false);
     }

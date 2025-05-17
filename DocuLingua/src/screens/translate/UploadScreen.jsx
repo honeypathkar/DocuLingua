@@ -8,6 +8,7 @@ import {
   Modal as ReactNativeModal,
   Pressable,
   ScrollView,
+  ToastAndroid,
 } from 'react-native';
 import {Text, useTheme, Button, Appbar, Menu} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -21,6 +22,9 @@ import DocumentPicker, {
 
 // import {launchImageLibrary} from 'react-native-image-picker';
 import ImageCropPicker from 'react-native-image-crop-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import {UploadDocumentUrl} from '../../../API';
 
 const uploadConfig = {maxSizeMB: 50};
 
@@ -246,12 +250,12 @@ export default function UploadScreen() {
   }, [initialDocType, handleBrowseDocuments, handleLaunchGallery, showModal]); // Dependencies
 
   // --- Navigation Handlers ---
-  const handleContinue = useCallback(() => {
+  const handleContinue = useCallback(async () => {
     if (!selectedFile) {
       Alert.alert('Selection Required', 'Please select a file to continue.');
       return;
     }
-    // Log details before proceeding
+
     console.log('--- Starting Translation Process ---');
     console.log(
       'Selected File:',
@@ -273,16 +277,35 @@ export default function UploadScreen() {
       `(${selectedTargetLang.value})`,
     );
 
-    // **TODO:** Implement actual upload and translation API call here
-    Alert.alert('Proceeding', 'Upload/Translation logic would start here.'); // Placeholder
+    const token = await AsyncStorage.getItem('userToken');
 
-    // Example: Navigate to a result or processing screen
-    // navigation.navigate('ProcessingScreen', {
-    //   fileDetails: selectedFile,
-    //   sourceLang: selectedSourceLang.value,
-    //   targetLang: selectedTargetLang.value,
-    // });
-  }, [selectedFile, selectedSourceLang, selectedTargetLang, navigation]); // Dependencies
+    try {
+      const formData = new FormData();
+      formData.append('documentName', selectedFile.name);
+      formData.append('file', {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: selectedFile.type || 'application/octet-stream',
+      });
+
+      const response = await axios.post(UploadDocumentUrl, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`, // Replace with your actual token
+        },
+      });
+
+      ToastAndroid.show('Upload successful!', ToastAndroid.SHORT);
+      // Optionally navigate to the next screen
+      // navigation.navigate('ProcessingScreen', { ... });
+    } catch (error) {
+      console.error('Upload error:', error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Failed to upload document.',
+      );
+    }
+  }, [selectedFile, selectedSourceLang, selectedTargetLang, navigation]);
 
   const handleGoBack = useCallback(() => {
     navigation.goBack();
