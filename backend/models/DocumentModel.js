@@ -31,6 +31,11 @@ const documentSchema = new Schema(
       enum: ["image", "pdf", "other"], // Specify allowed file types
       required: true,
     },
+    supabasePublicId: {
+      type: String,
+      unique: true,
+      required: true,
+    },
   },
   {
     timestamps: true, // Adds createdAt and updatedAt timestamps

@@ -7,6 +7,10 @@ const cloudinary = require("cloudinary").v2;
 const { sendEmailNotification } = require("../middleware/emailServices"); // Import the new service
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const supabase = require("../utils/supabase");
+const fs = require("fs");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
 
 // --- Signup ---
 const signupUser = async (req, res) => {
@@ -135,10 +139,10 @@ const getUserDetails = async (req, res) => {
 // Requires authentication (verifyToken middleware)
 const updateUserAccount = async (req, res) => {
   console.log("req.body:", req.body);
-  console.log("req.files:", req.files);
+  console.log("req.files:", req.file);
   const userId = req.userId;
   const { fullName, email, language } = req.body;
-  const userImage = req.files?.userImage;
+  const userImage = req.file;
 
   if (!fullName && !email && !userImage && !language) {
     return res.status(400).json({ message: "No update fields provided" });
@@ -165,30 +169,42 @@ const updateUserAccount = async (req, res) => {
     if (language) updateData.language = language;
 
     if (userImage) {
-      // Fetch existing user to get old image public_id
       const existingUserData = await UserModel.findById(userId);
+      const oldImageFilename = existingUserData?.userImagePublicId;
 
-      // Delete old image from Cloudinary if it exists
-      const oldImagePublicId = existingUserData?.userImagePublicId;
-      if (oldImagePublicId) {
-        await cloudinary.uploader.destroy(oldImagePublicId);
+      // Delete old image from Supabase
+      if (oldImageFilename) {
+        const { error: deleteError } = await supabase.storage
+          .from("doculingua")
+          .remove([oldImageFilename]);
+
+        if (deleteError) throw deleteError;
       }
 
-      // Upload new image
-      const uploadResult = await cloudinary.uploader.upload(
-        userImage.tempFilePath,
-        {
-          folder: "user-images",
-          quality: "30", // Low quality setting
-          fetch_format: "auto", // Convert to modern formats
-          width: 400,
-          height: 400,
-          crop: "limit",
-        }
-      );
+      // Create new filename and upload
+      const fileExt = path.extname(userImage.originalname);
+      const filename = `${uuidv4()}${fileExt}`;
 
-      updateData.userImage = uploadResult.secure_url;
-      updateData.userImagePublicId = uploadResult.public_id;
+      const buffer = userImage.buffer; // get buffer from memory
+
+      const { error: uploadError } = await supabase.storage
+        .from("doculingua")
+        .upload(filename, buffer, {
+          contentType: userImage.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Generate public URL
+      const { data: fileData } = supabase.storage
+        .from("doculingua")
+        .getPublicUrl(filename);
+
+      const publicURL = fileData.publicUrl;
+
+      updateData.userImage = publicURL;
+      updateData.userImagePublicId = filename;
     }
 
     const updatedUser = await UserModel.findByIdAndUpdate(

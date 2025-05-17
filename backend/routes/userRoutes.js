@@ -13,6 +13,7 @@ const {
   googleLoginRegister,
 } = require("../controllers/userController");
 const verifyToken = require("../middleware/verifyToken");
+const upload = require("../utils/multer");
 
 // --- Public Routes ---
 // POST /api/users/signup - Register a new user
@@ -26,7 +27,7 @@ router.post("/login", loginUser);
 router.get("/me", verifyToken, getUserDetails);
 
 // PUT /api/users/me - Update current logged-in user's account
-router.put("/me", verifyToken, updateUserAccount);
+router.patch("/me", verifyToken, upload.single("userImage"), updateUserAccount);
 
 // DELETE /api/users/me - Delete current logged-in user's account
 router.delete("/me", verifyToken, deleteUserAccount);

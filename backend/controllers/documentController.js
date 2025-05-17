@@ -24,7 +24,7 @@ const uploadDocument = async (req, res) => {
     // Step 3: Upload to Supabase Storage (bucket name = 'doculingua')
     const { error: uploadError } = await supabase.storage
       .from("doculingua")
-      .upload(filename, fs.readFileSync(req.file.path), {
+      .upload(filename, req.file.buffer, {
         contentType: req.file.mimetype,
         upsert: true,
       });
@@ -51,15 +51,12 @@ const uploadDocument = async (req, res) => {
       translatedText,
       file: publicURL,
       fileType,
-      cloudinaryPublicId: filename, // can rename this later if needed
+      supabasePublicId: filename, // can rename this later if needed
     });
 
     await UserModel.findByIdAndUpdate(userId, {
       $push: { documents: document._id },
     });
-
-    // Optional: clean up local file
-    fs.unlinkSync(req.file.path);
 
     res.status(201).json(document);
   } catch (error) {
@@ -70,4 +67,46 @@ const uploadDocument = async (req, res) => {
   }
 };
 
-module.exports = { uploadDocument };
+const deleteDocument = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { docId } = req.params;
+
+    if (!docId) {
+      return res.status(400).json({ message: "Document ID is required" });
+    }
+
+    // Step 1: Find the document by ID
+    const document = await DocumentModel.findById(docId);
+
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    const filename = document.supabasePublicId; // or `storageFileName` if you renamed it
+
+    // Step 2: Delete from Supabase Storage
+    const { error: deleteError } = await supabase.storage
+      .from("doculingua")
+      .remove([filename]);
+
+    if (deleteError) throw deleteError;
+
+    // Step 3: Delete the document from MongoDB
+    await DocumentModel.findByIdAndDelete(docId);
+
+    // Step 4: Remove reference from user's documents
+    await UserModel.findByIdAndUpdate(userId, {
+      $pull: { documents: docId },
+    });
+
+    res.status(200).json({ message: "Document deleted successfully" });
+  } catch (error) {
+    console.error("Delete Document Error:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Failed to delete document" });
+  }
+};
+
+module.exports = { uploadDocument, deleteDocument };
