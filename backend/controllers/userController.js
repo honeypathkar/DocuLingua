@@ -3,12 +3,10 @@ const DocumentModel = require("../models/DocumentModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const cloudinary = require("cloudinary").v2;
 const { sendEmailNotification } = require("../middleware/emailServices"); // Import the new service
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const supabase = require("../utils/supabase");
-const fs = require("fs");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 
@@ -422,27 +420,11 @@ const deleteUserAccount = async (req, res) => {
 
     // 2. Delete Profile Image from Cloudinary (if it exists)
     const imagePublicId = userToDelete.userImagePublicId;
-    if (imagePublicId) {
-      try {
-        console.log(`Attempting to delete Cloudinary image: ${imagePublicId}`);
-        const deletionResult = await cloudinary.uploader.destroy(imagePublicId);
-        console.log("Cloudinary deletion result:", deletionResult);
-        if (
-          deletionResult.result !== "ok" &&
-          deletionResult.result !== "not found"
-        ) {
-          console.warn(
-            `Cloudinary image deletion may have failed for public_id: ${imagePublicId}. Result: ${deletionResult.result}`
-          );
-        }
-      } catch (cloudinaryError) {
-        console.error(
-          `Error deleting image from Cloudinary (public_id: ${imagePublicId}):`,
-          cloudinaryError
-        );
-        // Log but continue
-      }
-    }
+    const { error: deleteError } = await supabase.storage
+      .from("doculingua")
+      .remove([imagePublicId]);
+
+    if (deleteError) throw deleteError;
 
     // 3. Delete Associated Documents
     try {
