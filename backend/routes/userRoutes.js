@@ -36,7 +36,7 @@ router.delete("/me", verifyToken, deleteUserAccount);
 router.get("/all", verifyToken, getAllUsers);
 
 // PUT /api/users/change-password - Change password
-router.put("/change-password", changePassword);
+router.patch("/change-password", changePassword);
 
 // POST /api/users/forgot-password - Forgot password
 router.post("/sendOtp", sendOtp);

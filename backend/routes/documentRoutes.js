@@ -6,6 +6,7 @@ const {
   documentById,
   getAllDocuments,
   getUserDocuments,
+  updateDocument,
 } = require("../controllers/documentController");
 const upload = require("../utils/multer");
 const verifyToken = require("../middleware/verifyToken");
@@ -26,5 +27,8 @@ router.delete("/:docId", verifyToken, deleteDocument);
 
 //Get by id of documents
 router.get("/:id", verifyToken, documentById);
+
+//Update document by id
+router.patch("/:id", verifyToken, updateDocument);
 
 module.exports = router;

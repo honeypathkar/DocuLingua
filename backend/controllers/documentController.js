@@ -162,10 +162,47 @@ const getUserDocuments = async (req, res) => {
   }
 };
 
+const updateDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const userId = req.userId;
+
+    if (!id) {
+      return res.status(400).json({ message: "Document ID is required" });
+    }
+
+    if (!name) {
+      return res.status(400).json({ message: "Document name is required" });
+    }
+
+    const document = await DocumentModel.findById(id);
+
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (document.userId.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized access to this document" });
+    }
+
+    document.documentName = name;
+    await document.save();
+
+    return res.status(200).json(document);
+  } catch (error) {
+    console.error("Error updating document:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   uploadDocument,
   deleteDocument,
   documentById,
   getAllDocuments,
   getUserDocuments,
+  updateDocument,
 };
