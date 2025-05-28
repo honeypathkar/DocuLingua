@@ -12,7 +12,6 @@ const upload = require("../utils/multer");
 const verifyToken = require("../middleware/verifyToken");
 const { extractText } = require("../controllers/extractionController");
 
-
 const router = express.Router();
 
 //Upload document
@@ -24,6 +23,9 @@ router.get("/user", verifyToken, getUserDocuments);
 //Get all from database
 router.get("/all", verifyToken, getAllDocuments);
 
+// Extract text from file (expects filePath in body)
+router.post("/extract", verifyToken, extractText);
+
 //Delete by id
 router.delete("/:docId", verifyToken, deleteDocument);
 
@@ -32,8 +34,5 @@ router.get("/:id", verifyToken, documentById);
 
 //Update document by id
 router.patch("/:id", verifyToken, updateDocument);
-
-// Extract text from file (expects filePath in body)
-router.post("/extract", verifyToken, extractText);
 
 module.exports = router;
