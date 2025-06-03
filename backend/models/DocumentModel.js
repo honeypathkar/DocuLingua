@@ -22,18 +22,13 @@ const documentSchema = new Schema(
       type: String,
       default: "", // Default to empty string if not provided
     },
-    file: {
-      type: String, // Store file content (e.g., Base64 string or URL)
-      required: true, // Assuming the file itself is mandatory
+    originalFileName: {
+      type: String,
+      required: true,
     },
     fileType: {
       type: String,
       enum: ["image", "pdf", "other"], // Specify allowed file types
-      required: true,
-    },
-    supabasePublicId: {
-      type: String,
-      unique: true,
       required: true,
     },
   },

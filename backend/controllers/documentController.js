@@ -1,10 +1,13 @@
-const fs = require("fs");
+const fs = require("fs"); // fs is not used, consider removing if not needed elsewhere
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
-const supabase = require("../utils/supabase");
+const supabase = require("../utils/supabase"); // Assuming this path is correct
 
-const DocumentModel = require("../models/DocumentModel");
-const UserModel = require("../models/UserModel");
+const DocumentModel = require("../models/DocumentModel"); // Assuming this path is correct
+const UserModel = require("../models/UserModel"); // Assuming this path is correct
+const {
+  extractTextFromSupabase,
+} = require("../controllers/extractionController"); // Assuming this path is correct
 
 const uploadDocument = async (req, res) => {
   try {
@@ -18,49 +21,91 @@ const uploadDocument = async (req, res) => {
     if (!req.file)
       return res.status(400).json({ message: "File is required for upload" });
 
+    // Use the original filename from the upload for storage in DB
+    const originalFileName = req.file.originalname;
+    // Generate a unique filename for Supabase storage to avoid conflicts
     const fileExt = path.extname(req.file.originalname);
-    const filename = `${uuidv4()}${fileExt}`;
+    const uniqueStorageFilename = `${uuidv4()}${fileExt}`;
 
-    // Step 3: Upload to Supabase Storage (bucket name = 'doculingua')
+    // Upload to Supabase with the unique filename
     const { error: uploadError } = await supabase.storage
-      .from("doculingua")
-      .upload(filename, req.file.buffer, {
+      .from("doculingua") // Make sure this bucket name is correct
+      .upload(uniqueStorageFilename, req.file.buffer, {
         contentType: req.file.mimetype,
-        upsert: true,
+        upsert: true, // Consider if upsert is truly needed or if false is better for new unique names
       });
 
     if (uploadError) throw uploadError;
 
-    // Step 4: Generate Public URL
+    // Get public URL for text extraction (this URL is temporary and not stored in DB)
     const { data: fileData } = supabase.storage
       .from("doculingua")
-      .getPublicUrl(filename);
+      .getPublicUrl(uniqueStorageFilename);
     const publicURL = fileData.publicUrl;
 
-    // Step 5: Determine file type
     const mimeType = req.file.mimetype;
     let fileType = "other";
     if (mimeType.startsWith("image/")) fileType = "image";
     else if (mimeType === "application/pdf") fileType = "pdf";
 
-    // Step 6: Save document to DB
+    // Save to DB:
+    // - Storing originalFileName instead of publicURL or supabasePublicId
+    // - originalText and translatedText can be passed in body or will default
     const document = await DocumentModel.create({
       userId,
       documentName,
-      originalText,
-      translatedText,
-      file: publicURL,
+      originalText: originalText || "", // Use provided or default to empty
+      translatedText: translatedText || "", // Use provided or default to empty
+      originalFileName, // Store the original name of the file
       fileType,
-      supabasePublicId: filename, // can rename this later if needed
+      // supabasePublicId is no longer stored
+      // file (publicURL) is no longer stored
     });
 
+    // Call the external extract module using the temporary publicURL
+    let extractedText = "";
+    try {
+      // Pass uniqueStorageFilename as the second argument if extractTextFromSupabase needs it
+      // for determining file type, or if it's used for logging/internal reference.
+      extractedText = await extractTextFromSupabase(
+        publicURL,
+        uniqueStorageFilename
+      );
+    } catch (err) {
+      console.error("Text extraction failed:", err);
+      // You might want to set a specific status on the document or handle this more gracefully
+      extractedText = "Error extracting text";
+    }
+
+    // Update document with extracted text
+    document.originalText = extractedText;
+    await document.save();
+
+    // Add document reference to user
     await UserModel.findByIdAndUpdate(userId, {
       $push: { documents: document._id },
     });
 
+    // Delete the temporary file from Supabase storage after processing
+    // as it's no longer directly linked from the database record for future access.
+    const { error: deleteError } = await supabase.storage
+      .from("doculingua")
+      .remove([uniqueStorageFilename]);
+
+    if (deleteError) {
+      // Log error but don't let it fail the whole request, as document is already created
+      console.error(
+        "Error deleting temporary file from Supabase after processing:",
+        deleteError
+      );
+    }
+
     res.status(201).json(document);
   } catch (error) {
     console.error("Upload Document Error:", error);
+    // If an error occurred and a file was uploaded to Supabase,
+    // it might be orphaned if not cleaned up here.
+    // However, the uniqueStorageFilename might not be defined at this point if error was early.
     res
       .status(500)
       .json({ message: error.message || "Failed to upload document" });
@@ -76,21 +121,24 @@ const deleteDocument = async (req, res) => {
       return res.status(400).json({ message: "Document ID is required" });
     }
 
-    // Step 1: Find the document by ID
-    const document = await DocumentModel.findById(docId);
+    // Step 1: Find the document by ID to ensure it exists and belongs to the user (optional check)
+    const document = await DocumentModel.findOne({
+      _id: docId,
+      userId: userId,
+    });
 
     if (!document) {
-      return res.status(404).json({ message: "Document not found" });
+      // If checking for userId, this message covers both "not found" and "unauthorized"
+      return res
+        .status(404)
+        .json({ message: "Document not found or access denied" });
     }
 
-    const filename = document.supabasePublicId; // or `storageFileName` if you renamed it
-
-    // Step 2: Delete from Supabase Storage
-    const { error: deleteError } = await supabase.storage
-      .from("doculingua")
-      .remove([filename]);
-
-    if (deleteError) throw deleteError;
+    // Step 2: Delete from Supabase Storage is REMOVED
+    // Since supabasePublicId is no longer stored, we cannot delete the corresponding file from Supabase.
+    // The file uploaded during uploadDocument is now treated as temporary and deleted at the end of that function.
+    // If there's a need to delete files from Supabase associated with a document at this stage,
+    // a different mechanism or storing the uniqueStorageFilename would be required.
 
     // Step 3: Delete the document from MongoDB
     await DocumentModel.findByIdAndDelete(docId);
@@ -100,19 +148,19 @@ const deleteDocument = async (req, res) => {
       $pull: { documents: docId },
     });
 
-    res.status(200).json({ message: "Document deleted successfully" });
+    res.status(200).json({ message: "Document metadata deleted successfully" });
   } catch (error) {
     console.error("Delete Document Error:", error);
     res
       .status(500)
-      .json({ message: error.message || "Failed to delete document" });
+      .json({ message: error.message || "Failed to delete document metadata" });
   }
 };
 
 const documentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.userId;
+    const userId = req.userId; // Assuming verifyToken middleware adds userId to req
 
     if (!id) {
       return res.status(400).json({ message: "Document ID is required" });
@@ -124,6 +172,7 @@ const documentById = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
+    // Ensure the document belongs to the requesting user
     if (document.userId.toString() !== userId) {
       return res
         .status(403)
@@ -133,49 +182,86 @@ const documentById = async (req, res) => {
     return res.status(200).json(document);
   } catch (error) {
     console.error("Error fetching document:", error);
-    return res.status(500).json({ message: "Server error" });
+    // Check for CastError if ID format is invalid
+    if (error.name === "CastError") {
+      return res.status(400).json({ message: "Invalid Document ID format" });
+    }
+    return res
+      .status(500)
+      .json({ message: "Server error while fetching document" });
   }
 };
 
 const getAllDocuments = async (req, res) => {
   try {
+    // This route fetches ALL documents from ALL users.
+    // Consider if this is intended, or if it should be admin-only or removed.
     const documents = await DocumentModel.find();
-    return res.status(200).json({ message: "All documents", data: documents });
+    return res
+      .status(200)
+      .json({ message: "All documents retrieved", data: documents });
   } catch (error) {
     console.error("Error fetching all documents:", error);
-    return res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: "Server error while fetching all documents" });
   }
 };
 
-// ✅ GET /user/documents - Get all documents created by logged-in user
+// Get all documents created by the logged-in user
 const getUserDocuments = async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.userId; // Assuming verifyToken middleware adds userId to req
+
+    if (!userId) {
+      // This case should ideally be caught by verifyToken middleware
+      return res.status(401).json({ message: "User not authenticated" });
+    }
 
     const documents = await DocumentModel.find({ userId });
     return res
       .status(200)
-      .json({ message: "Document by logged in user", data: documents });
+      .json({
+        message: "User documents retrieved successfully",
+        data: documents,
+      });
   } catch (error) {
     console.error("Error fetching user documents:", error);
-    return res.status(500).json({ message: "Server error" });
+    return res
+      .status(500)
+      .json({ message: "Server error while fetching user documents" });
   }
 };
 
 const updateDocument = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
-    const userId = req.userId;
+    // Only allowing 'documentName' and 'translatedText' to be updated for now.
+    // Add other fields if they should be updatable.
+    const { documentName, translatedText } = req.body;
+    const userId = req.userId; // Assuming verifyToken middleware adds userId to req
 
     if (!id) {
       return res.status(400).json({ message: "Document ID is required" });
     }
 
-    if (!name) {
-      return res.status(400).json({ message: "Document name is required" });
+    // Basic validation for inputs
+    if (!documentName && !translatedText) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "No updateable fields provided (e.g., documentName, translatedText).",
+        });
     }
 
+    const updateFields = {};
+    if (documentName) updateFields.documentName = documentName;
+    if (translatedText) updateFields.translatedText = translatedText;
+    // Add other fields to updateFields if necessary:
+    // if (req.body.originalText) updateFields.originalText = req.body.originalText;
+
+    // Find the document first to ensure it exists and belongs to the user
     const document = await DocumentModel.findById(id);
 
     if (!document) {
@@ -185,16 +271,27 @@ const updateDocument = async (req, res) => {
     if (document.userId.toString() !== userId) {
       return res
         .status(403)
-        .json({ message: "Unauthorized access to this document" });
+        .json({
+          message: "Unauthorized: You can only update your own documents",
+        });
     }
 
-    document.documentName = name;
+    // Apply updates
+    if (documentName) document.documentName = documentName;
+    if (translatedText !== undefined) document.translatedText = translatedText; // Allow setting empty string
+    // if (originalText !== undefined) document.originalText = originalText;
+
     await document.save();
 
     return res.status(200).json(document);
   } catch (error) {
     console.error("Error updating document:", error);
-    return res.status(500).json({ message: "Server error" });
+    if (error.name === "CastError") {
+      return res.status(400).json({ message: "Invalid Document ID format" });
+    }
+    return res
+      .status(500)
+      .json({ message: "Server error while updating document" });
   }
 };
 

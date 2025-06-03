@@ -10,7 +10,6 @@ const {
 } = require("../controllers/documentController");
 const upload = require("../utils/multer");
 const verifyToken = require("../middleware/verifyToken");
-const { extractText } = require("../controllers/extractionController");
 
 const router = express.Router();
 
@@ -22,9 +21,6 @@ router.get("/user", verifyToken, getUserDocuments);
 
 //Get all from database
 router.get("/all", verifyToken, getAllDocuments);
-
-// Extract text from file (expects filePath in body)
-router.post("/extract", verifyToken, extractText);
 
 //Delete by id
 router.delete("/:docId", verifyToken, deleteDocument);
