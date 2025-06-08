@@ -1,35 +1,31 @@
-const { Translate } = require('@google-cloud/translate').v2;
+const axios = require("axios");
+const dotenv = require("dotenv");
+dotenv.config();
+const RAPID_API_KEY = process.env.RAPID_API;
+const RAPID_API_HOST = process.env.RAPID_API_HOST;
 
-// Initialize Google Translate client
-const translate = new Translate();
+async function translateTextRapidAPI(text, source = "auto", target = "hi") {
+  try {
+    const response = await axios.request({
+      method: "POST",
+      url: "https://deep-translate1.p.rapidapi.com/language/translate/v2",
+      headers: {
+        "x-rapidapi-key": RAPID_API_KEY,
+        "x-rapidapi-host": RAPID_API_HOST,
+        "Content-Type": "application/json",
+      },
+      data: {
+        q: text,
+        source,
+        target,
+      },
+    });
 
-/**
- * Translates text to the target language using Google Translate API
- * @param {string} text - The text to translate
- * @param {string} targetLang - The target language code (e.g., 'es', 'fr')
- * @returns {Promise<string>} - The translated text
- */
-async function translateText(text, targetLang) {
-    const [translation] = await translate.translate(text, targetLang);
-    return translation;
+    return response.data.data.translations.translatedText;
+  } catch (err) {
+    console.error("RapidAPI Translation Error:", err.message);
+    return "Translation failed";
+  }
 }
 
-// Express handler
-exports.translateHandler = async (req, res) => {
-    try {
-        const { text, targetLang } = req.body;
-        if (!text || !targetLang) {
-            return res.status(400).json({ error: 'text and targetLang are required' });
-        }
-
-        if (!/^[a-z]{2}$/.test(targetLang)) {
-            return res.status(400).json({ error: 'Invalid targetLang format' });
-        }
-
-        const translated = await translateText(text, targetLang);
-        res.json({ translated });
-    } catch (err) {
-        const isDev = process.env.NODE_ENV !== 'production';
-        res.status(500).json({ error: isDev ? err.message : 'Translation failed' });
-    }
-};
+exports.translateTextRapidAPI = translateTextRapidAPI;

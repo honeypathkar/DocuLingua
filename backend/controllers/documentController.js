@@ -7,12 +7,13 @@ const DocumentModel = require("../models/DocumentModel"); // Assuming this path 
 const UserModel = require("../models/UserModel"); // Assuming this path is correct
 const {
   extractTextFromSupabase,
-} = require("../controllers/extractionController"); // Assuming this path is correct
+} = require("../controllers/extractionController");
+const { translateTextRapidAPI } = require("./translationController");
 
 const uploadDocument = async (req, res) => {
   try {
     const userId = req.userId;
-    const { documentName, originalText, translatedText } = req.body;
+    const { documentName } = req.body;
 
     if (!userId)
       return res.status(401).json({ message: "User not authenticated" });
@@ -21,23 +22,21 @@ const uploadDocument = async (req, res) => {
     if (!req.file)
       return res.status(400).json({ message: "File is required for upload" });
 
-    // Use the original filename from the upload for storage in DB
     const originalFileName = req.file.originalname;
-    // Generate a unique filename for Supabase storage to avoid conflicts
-    const fileExt = path.extname(req.file.originalname);
+    const fileExt = path.extname(originalFileName);
     const uniqueStorageFilename = `${uuidv4()}${fileExt}`;
 
-    // Upload to Supabase with the unique filename
+    // Upload file to Supabase
     const { error: uploadError } = await supabase.storage
-      .from("doculingua") // Make sure this bucket name is correct
+      .from("doculingua")
       .upload(uniqueStorageFilename, req.file.buffer, {
         contentType: req.file.mimetype,
-        upsert: true, // Consider if upsert is truly needed or if false is better for new unique names
+        upsert: true,
       });
 
     if (uploadError) throw uploadError;
 
-    // Get public URL for text extraction (this URL is temporary and not stored in DB)
+    // Get temporary public URL
     const { data: fileData } = supabase.storage
       .from("doculingua")
       .getPublicUrl(uniqueStorageFilename);
@@ -48,67 +47,66 @@ const uploadDocument = async (req, res) => {
     if (mimeType.startsWith("image/")) fileType = "image";
     else if (mimeType === "application/pdf") fileType = "pdf";
 
-    // Save to DB:
-    // - Storing originalFileName instead of publicURL or supabasePublicId
-    // - originalText and translatedText can be passed in body or will default
+    // Create initial document entry
     const document = await DocumentModel.create({
       userId,
       documentName,
-      originalText: originalText || "", // Use provided or default to empty
-      translatedText: translatedText || "", // Use provided or default to empty
-      originalFileName, // Store the original name of the file
+      originalText: "",
+      translatedText: "",
+      originalFileName,
       fileType,
-      // supabasePublicId is no longer stored
-      // file (publicURL) is no longer stored
     });
 
-    // Call the external extract module using the temporary publicURL
+    // Extract text
     let extractedText = "";
     try {
-      // Pass uniqueStorageFilename as the second argument if extractTextFromSupabase needs it
-      // for determining file type, or if it's used for logging/internal reference.
       extractedText = await extractTextFromSupabase(
         publicURL,
         uniqueStorageFilename
       );
     } catch (err) {
       console.error("Text extraction failed:", err);
-      // You might want to set a specific status on the document or handle this more gracefully
       extractedText = "Error extracting text";
     }
 
-    // Update document with extracted text
-    document.originalText = extractedText;
+    // Clean extracted text
+    const cleanedText = extractedText.replace(/[\r\n]+/g, " ");
+
+    // Translate
+    let translated = "";
+    try {
+      translated = await translateTextRapidAPI(cleanedText, "auto", "hi");
+    } catch (err) {
+      console.error("Translation failed:", err);
+      translated = "Translation failed";
+    }
+
+    // Update document with clean data
+    document.originalText = cleanedText;
+    document.translatedText = Array.isArray(translated)
+      ? translated.join(" ")
+      : translated.toString();
     await document.save();
 
-    // Add document reference to user
+    // Add reference to user
     await UserModel.findByIdAndUpdate(userId, {
       $push: { documents: document._id },
     });
 
-    // Delete the temporary file from Supabase storage after processing
-    // as it's no longer directly linked from the database record for future access.
+    // Remove uploaded file from Supabase
     const { error: deleteError } = await supabase.storage
       .from("doculingua")
       .remove([uniqueStorageFilename]);
-
     if (deleteError) {
-      // Log error but don't let it fail the whole request, as document is already created
-      console.error(
-        "Error deleting temporary file from Supabase after processing:",
-        deleteError
-      );
+      console.error("Error deleting file from Supabase:", deleteError);
     }
 
     res.status(201).json(document);
   } catch (error) {
     console.error("Upload Document Error:", error);
-    // If an error occurred and a file was uploaded to Supabase,
-    // it might be orphaned if not cleaned up here.
-    // However, the uniqueStorageFilename might not be defined at this point if error was early.
-    res
-      .status(500)
-      .json({ message: error.message || "Failed to upload document" });
+    res.status(500).json({
+      message: error.message || "Failed to upload document",
+    });
   }
 };
 
@@ -219,12 +217,10 @@ const getUserDocuments = async (req, res) => {
     }
 
     const documents = await DocumentModel.find({ userId });
-    return res
-      .status(200)
-      .json({
-        message: "User documents retrieved successfully",
-        data: documents,
-      });
+    return res.status(200).json({
+      message: "User documents retrieved successfully",
+      data: documents,
+    });
   } catch (error) {
     console.error("Error fetching user documents:", error);
     return res
@@ -247,12 +243,10 @@ const updateDocument = async (req, res) => {
 
     // Basic validation for inputs
     if (!documentName && !translatedText) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "No updateable fields provided (e.g., documentName, translatedText).",
-        });
+      return res.status(400).json({
+        message:
+          "No updateable fields provided (e.g., documentName, translatedText).",
+      });
     }
 
     const updateFields = {};
@@ -269,11 +263,9 @@ const updateDocument = async (req, res) => {
     }
 
     if (document.userId.toString() !== userId) {
-      return res
-        .status(403)
-        .json({
-          message: "Unauthorized: You can only update your own documents",
-        });
+      return res.status(403).json({
+        message: "Unauthorized: You can only update your own documents",
+      });
     }
 
     // Apply updates
