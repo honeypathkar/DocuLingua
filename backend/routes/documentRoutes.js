@@ -8,6 +8,7 @@ const {
   getUserDocuments,
   updateDocument,
   deleteAllDocuments,
+  translateText,
 } = require("../controllers/documentController");
 const upload = require("../utils/multer");
 const verifyToken = require("../middleware/verifyToken");
@@ -16,6 +17,9 @@ const router = express.Router();
 
 //Upload document
 router.post("/upload", verifyToken, upload.single("file"), uploadDocument);
+
+//Translate text
+router.post("/translate", verifyToken, translateText);
 
 //Get by user id
 router.get("/user", verifyToken, getUserDocuments);

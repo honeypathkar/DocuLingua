@@ -5,10 +5,8 @@ const supabase = require("../utils/supabase"); // Assuming this path is correct
 
 const DocumentModel = require("../models/DocumentModel"); // Assuming this path is correct
 const UserModel = require("../models/UserModel"); // Assuming this path is correct
-const {
-  extractTextFromSupabase,
-} = require("../controllers/extractionController");
-const { translateTextRapidAPI } = require("./translationController");
+const { extractTextFromSupabase } = require("../middleware/extractionService");
+const { translateTextRapidAPI } = require("../middleware/translationService");
 
 const uploadDocument = async (req, res) => {
   try {
@@ -355,6 +353,78 @@ const deleteAllDocuments = async (req, res) => {
   }
 };
 
+const translateText = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { documentName, targetLanguage, text } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+    if (!documentName) {
+      return res.status(400).json({ message: "Document name is required" });
+    }
+    if (!targetLanguage) {
+      return res.status(400).json({ message: "Target language is required" });
+    }
+    if (!text) {
+      return res.status(400).json({ message: "Text to translate is required" });
+    }
+
+    // Check for duplicate document name for the same user
+    const existingDoc = await DocumentModel.findOne({
+      userId,
+      documentName: { $regex: new RegExp(`^${documentName}$`, "i") }, // Case-insensitive match
+    });
+
+    if (existingDoc) {
+      return res.status(409).json({
+        message: `Document with name "${documentName}" already exists.`,
+      });
+    }
+
+    // Clean text
+    const cleanedText = text.replace(/[\r\n]+/g, " ");
+
+    // Translate
+    let translated = "";
+    try {
+      translated = await translateTextRapidAPI(
+        cleanedText,
+        "auto",
+        targetLanguage
+      );
+    } catch (err) {
+      console.error("Translation failed:", err);
+      translated = "Translation failed";
+    }
+
+    // Create document entry
+    const document = await DocumentModel.create({
+      userId,
+      documentName,
+      originalFileName: documentName,
+      originalText: cleanedText,
+      translatedText: Array.isArray(translated)
+        ? translated.join(" ")
+        : translated.toString(),
+      fileType: "image",
+    });
+
+    // Add reference to user
+    await UserModel.findByIdAndUpdate(userId, {
+      $push: { documents: document._id },
+    });
+
+    res.status(201).json(document);
+  } catch (error) {
+    console.error("Translate Text Error:", error);
+    res.status(500).json({
+      message: error.message || "Failed to translate text",
+    });
+  }
+};
+
 module.exports = {
   uploadDocument,
   deleteDocument,
@@ -363,4 +433,5 @@ module.exports = {
   getUserDocuments,
   updateDocument,
   deleteAllDocuments,
+  translateText,
 };
