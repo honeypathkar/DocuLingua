@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "app.js"
     }
-  ]
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "node_modules/tesseract.js-core/tesseract-core-simd.wasm",
+      "maxDuration": 30
+    }
+  }
 }

@@ -11,7 +11,7 @@ function getFileTypeFromName(fileName) {
   return null;
 }
 
-// *** UPDATED FUNCTION using Tesseract.js ***
+// *** UPDATED FUNCTION using Tesseract.js with Vercel optimizations ***
 async function extractTextFromBuffer(buffer, fileName) {
   const fileType = getFileTypeFromName(fileName);
   if (!fileType) throw new Error("Unsupported file type");
@@ -22,9 +22,12 @@ async function extractTextFromBuffer(buffer, fileName) {
   }
 
   if (fileType === "image") {
-    // 1. Create a worker. For one-off tasks, it's fine to create/terminate per call.
-    //    For high-throughput servers, you might manage a pool of workers.
-    const worker = await createWorker("eng"); // 'eng' for English
+    // 1. Create a worker.
+    // The key change is adding the options object with cachePath.
+    const worker = await createWorker("eng", 1, {
+      cachePath: "/tmp/", // Use the only writable directory in Vercel
+      logger: (m) => console.log(m), // Optional: Add a logger to see progress
+    });
 
     try {
       console.log(`Processing image with Tesseract.js: ${fileName}`);
