@@ -1,9 +1,9 @@
-const Tesseract = require("tesseract.js");
+const { createWorker } = require("tesseract.js");
 const pdfParse = require("pdf-parse");
 const path = require("path");
 const supabase = require("../utils/supabase");
 
-// Helper
+// Helper to determine file type remains the same
 function getFileTypeFromName(fileName) {
   const ext = path.extname(fileName).toLowerCase();
   if ([".jpg", ".jpeg", ".png"].includes(ext)) return "image";
@@ -11,34 +11,58 @@ function getFileTypeFromName(fileName) {
   return null;
 }
 
+// *** UPDATED FUNCTION using Tesseract.js ***
 async function extractTextFromBuffer(buffer, fileName) {
   const fileType = getFileTypeFromName(fileName);
   if (!fileType) throw new Error("Unsupported file type");
 
-  try {
-    if (fileType === "image") {
+  // Ensure buffer is not null or empty
+  if (!buffer || buffer.length === 0) {
+    throw new Error(`Received an empty buffer for file: ${fileName}`);
+  }
+
+  if (fileType === "image") {
+    // 1. Create a worker. For one-off tasks, it's fine to create/terminate per call.
+    //    For high-throughput servers, you might manage a pool of workers.
+    const worker = await createWorker("eng"); // 'eng' for English
+
+    try {
+      console.log(`Processing image with Tesseract.js: ${fileName}`);
+      // 2. Recognize text from the buffer
       const {
         data: { text },
-      } = await Tesseract.recognize(buffer, "eng");
-      if (!text) {
-        throw new Error("No text could be extracted from the image");
+      } = await worker.recognize(buffer);
+
+      if (!text || text.trim() === "") {
+        console.warn(`No text could be extracted from the image: ${fileName}`);
+        return "";
       }
       return text;
-    } else if (fileType === "pdf") {
+    } catch (error) {
+      console.error(`Error with Tesseract.js for ${fileName}:`, error);
+      throw new Error(`Failed to extract text from image: ${error.message}`);
+    } finally {
+      // 3. Terminate the worker to free up resources
+      await worker.terminate();
+      console.log(`Tesseract.js worker terminated for ${fileName}.`);
+    }
+  } else if (fileType === "pdf") {
+    try {
+      console.log(`Processing PDF with pdf-parse: ${fileName}`);
       const data = await pdfParse(buffer);
       if (!data || !data.text) {
-        throw new Error("No text could be extracted from the PDF");
+        console.warn(`No text could be extracted from the PDF: ${fileName}`);
+        return "";
       }
       return data.text;
+    } catch (error) {
+      console.error(`Error extracting text from PDF ${fileName}:`, error);
+      throw new Error(`Failed to extract text from PDF: ${error.message}`);
     }
-  } catch (error) {
-    console.error(`Error extracting text from ${fileType}:`, error);
-    throw new Error(
-      `Failed to extract text from ${fileType}: ${error.message}`
-    );
   }
 }
 
+// Your Supabase function remains the same, as it will call the updated helper
 async function extractTextFromSupabase(publicURL, fileName) {
   const bucketName = "doculingua";
   let objectKey = publicURL;
@@ -70,10 +94,11 @@ async function extractTextFromSupabase(publicURL, fileName) {
     const arrayBuffer = await data.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // This now calls your new and improved function
     return await extractTextFromBuffer(buffer, fileName);
   } catch (error) {
     console.error("Error in extractTextFromSupabase:", error);
-    throw error; // Re-throw to be handled by the caller
+    throw error;
   }
 }
 
