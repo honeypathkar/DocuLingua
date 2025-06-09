@@ -10,7 +10,14 @@ import {
   ScrollView,
   ToastAndroid,
 } from 'react-native';
-import {Text, useTheme, Button, Appbar, Menu} from 'react-native-paper';
+import {
+  Text,
+  useTheme,
+  Button,
+  Appbar,
+  Menu,
+  ActivityIndicator, // Still needed for the simple loader
+} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useNavigation, useRoute} from '@react-navigation/native';
 
@@ -20,11 +27,11 @@ import DocumentPicker, {
   pick,
 } from '@react-native-documents/picker';
 
-// import {launchImageLibrary} from 'react-native-image-picker';
 import ImageCropPicker from 'react-native-image-crop-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import {UploadDocumentUrl} from '../../../API';
+import {UploadDocumentUrl, TranslateTextUrl} from '../../../API';
+import MLKitOCR from 'react-native-mlkit-ocr';
 
 const uploadConfig = {maxSizeMB: 50};
 
@@ -41,14 +48,8 @@ const targetLanguages = availableLanguages.filter(
 );
 
 const documentTypesForPicker = {
-  pdf: [types.pdf], // Use the constant from the library
-  image: [], // Images are handled by image picker
-  // Add other types if you uncomment the 'Document' option in TranslateScreen
-  // document: [
-  //  types.doc, // Includes .doc
-  //  types.docx, // Includes .docx
-  //  types.plainText, // Includes .txt
-  // ],
+  pdf: [types.pdf],
+  image: [],
 };
 
 export default function UploadScreen() {
@@ -57,281 +58,214 @@ export default function UploadScreen() {
   const route = useRoute();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const initialDocType = route.params?.documentType; // 'PDF' or 'Image'
-  const capturedImageData = route.params?.capturedImageData; // Data from camera
+  const initialDocType = route.params?.documentType;
+  const capturedImageData = route.params?.capturedImageData;
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [sourceMenuVisible, setSourceMenuVisible] = useState(false);
   const [targetMenuVisible, setTargetMenuVisible] = useState(false);
   const [selectedSourceLang, setSelectedSourceLang] = useState(
-    availableLanguages[0], // Default to Auto-detect
+    availableLanguages[0],
   );
   const [selectedTargetLang, setSelectedTargetLang] = useState(
-    targetLanguages.find(lang => lang.value === 'es') || targetLanguages[0], // Default to Spanish or first target lang
+    targetLanguages.find(lang => lang.value === 'es') || targetLanguages[0],
   );
+
+  // Only `isLoading` state is needed now
+  const [isLoading, setIsLoading] = useState(false);
 
   const showModal = useCallback(() => setIsModalVisible(true), []);
   const hideModal = useCallback(() => setIsModalVisible(false), []);
 
-  const processSelectedFile = useCallback(
-    fileData => {
-      if (!fileData || !fileData.uri) {
-        console.error('Invalid file data received:', fileData);
-        Alert.alert('Error', 'Failed to process the selected file.');
-        setSelectedFile(null);
-        return;
-      }
-      const fileSize = typeof fileData.size === 'number' ? fileData.size : 0;
-      if (fileSize > 0 && fileSize / (1024 * 1024) > uploadConfig.maxSizeMB) {
-        Alert.alert(
-          'File Too Large',
-          `File size (${(fileSize / (1024 * 1024)).toFixed(
-            2,
-          )} MB) exceeds the limit of ${uploadConfig.maxSizeMB}MB.`,
-        );
-        setSelectedFile(null); // Clear selection if too large
-      } else {
-        const finalFile = {
-          uri: fileData.uri,
-          name: fileData.name || 'Unnamed File', // Provide a fallback name
-          type: fileData.type || 'application/octet-stream', // Provide a fallback type
-          size: fileSize > 0 ? fileSize : null, // Keep size null if not provided/zero
-        };
-        console.log('Processed file for state update:', finalFile);
-        setSelectedFile(finalFile); // Update the state
-      }
-    },
-    [uploadConfig.maxSizeMB], // Dependency: maxSizeMB
-  );
+  const processSelectedFile = useCallback(fileData => {
+    if (!fileData || !fileData.uri) {
+      Alert.alert('Error', 'Failed to process the selected file.');
+      setSelectedFile(null);
+      return;
+    }
+    const fileSize = typeof fileData.size === 'number' ? fileData.size : 0;
+    if (fileSize > 0 && fileSize / (1024 * 1024) > uploadConfig.maxSizeMB) {
+      Alert.alert(
+        'File Too Large',
+        `File size is too large. Max size: ${uploadConfig.maxSizeMB}MB.`,
+      );
+      setSelectedFile(null);
+    } else {
+      const finalFile = {
+        uri: fileData.uri,
+        name: fileData.name || 'Unnamed File',
+        type: fileData.type || 'application/octet-stream',
+        size: fileSize > 0 ? fileSize : null,
+      };
+      setSelectedFile(finalFile);
+    }
+  }, []);
 
   useEffect(() => {
     if (capturedImageData) {
-      console.log('Received captured image data on mount:', capturedImageData);
-      processSelectedFile(capturedImageData); // Process the captured image
+      processSelectedFile(capturedImageData);
     }
-  }, [capturedImageData, processSelectedFile]); // Dependencies
-
-  // --- Picker Handlers ---
+  }, [capturedImageData, processSelectedFile]);
 
   const handleLaunchGallery = useCallback(async () => {
-    hideModal(); // Close the selection modal first
-
+    hideModal();
     try {
       const image = await ImageCropPicker.openPicker({
         mediaType: 'photo',
         cropping: true,
-        // width: 500,
-        // height: 500,
         compressImageQuality: 0.7,
-        cropperToolbarTitle: 'Crop Image',
-        cropperToolbarColor: theme.colors.background,
-        cropperToolbarWidgetColor: theme.colors.onSurface,
-        cropperActiveWidgetColor: theme.colors.primary,
-        cropperStatusBarColor: theme.colors.background,
       });
-
       if (image) {
-        console.log('Selected image from gallery:', image.path);
-
-        if (image.size && image.size > uploadConfig.maxSizeMB * 1024 * 1024) {
-          Alert.alert(
-            'Image Too Large',
-            `Please select an image smaller than ${
-              1024 * 1024 * uploadConfig.maxSizeMB
-            } MB.`,
-          );
-          return;
-        }
-
         processSelectedFile({
           uri: image.path,
           name: image.filename || 'selected.jpg',
           type: image.mime || 'image/jpeg',
           size: image.size,
         });
-      } else {
-        console.warn('No image returned from picker.');
       }
     } catch (error) {
-      if (error.code === 'E_PICKER_CANCELLED') {
-        console.log('User cancelled gallery picker');
-      } else {
-        console.error('Gallery Picker Error:', error);
-        Alert.alert(
-          'Gallery Picker Error',
-          error.message || 'An error occurred while selecting image.',
-        );
+      if (error.code !== 'E_PICKER_CANCELLED') {
+        Alert.alert('Gallery Error', error.message || 'An error occurred.');
       }
     }
-  }, [hideModal, processSelectedFile, theme]);
+  }, [hideModal, processSelectedFile]);
 
-  const handleBrowseDocuments = async () => {
-    hideModal(); // Ensure modal is hidden
-    console.log('Attempting to browse documents (expecting PDF)...');
-    // Determine which document types to allow based on initialDocType
-    // For now, we assume if this function is called, it's for PDF
-    const typesToPick = documentTypesForPicker.pdf;
-
-    if (!typesToPick || typesToPick.length === 0) {
-      Alert.alert(
-        'Configuration Error',
-        'No document types configured for PDF selection.',
-      );
-      return;
-    }
-    console.log('Using types:', typesToPick);
-
+  const handleBrowseDocuments = useCallback(async () => {
+    hideModal();
     try {
       const [pickerResult] = await pick({
-        mode: 'open', // Use 'open' to get read access
-        allowMultiSelection: false, // Only one document
-        type: typesToPick, // Specify allowed types (PDF)
-        // presentationStyle: 'fullScreen', // Optional: iOS presentation style
-        // copyTo: 'cachesDirectory', // Optional: copy file for stable URI, might increase time
+        mode: 'open',
+        type: [types.pdf],
       });
-
-      console.log(
-        'Document Picker Success (Raw Result):',
-        JSON.stringify(pickerResult, null, 2),
-      );
-
-      if (!pickerResult.uri || !pickerResult.name) {
-        console.error(
-          'Document Picker Success but missing URI or Name:',
-          pickerResult,
-        );
-        Alert.alert('Picker Error', 'Selected file details are incomplete.');
-        return;
-      }
-      // Process the selected document
-      processSelectedFile({
-        uri: pickerResult.uri,
-        name: pickerResult.name,
-        type: pickerResult.type,
-        size: pickerResult.size,
-      });
+      processSelectedFile(pickerResult);
     } catch (err) {
-      if (isCancel(err)) {
-        console.log('User cancelled document picker.');
-      } else {
-        // Log detailed error
-        console.error('--- Document Picker Error ---');
-        console.error('Error Code:', err.code);
-        console.error('Error Message:', err.message);
-        console.error('Full Error Object:', JSON.stringify(err, null, 2));
-        console.error('--- End Document Picker Error ---');
-        Alert.alert(
-          'Document Picker Error',
-          `Could not open documents. ${
-            err.message || 'Please check permissions or try again.'
-          } (Code: ${err.code || 'N/A'})`,
-        );
-        // Potentially re-throw specific errors if needed elsewhere
-        // throw err;
+      if (!isCancel(err)) {
+        Alert.alert('Picker Error', err.message || 'Could not open documents.');
       }
     }
-  };
+  }, [hideModal, processSelectedFile]);
 
-  // --- Upload Box Press Handler ---
   const handleUploadBoxPress = useCallback(() => {
-    console.log(`Upload box pressed. InitialDocType: ${initialDocType}`);
-    // Trigger specific picker based on how the screen was entered
     if (initialDocType === 'PDF') {
       handleBrowseDocuments();
     } else if (initialDocType === 'Image') {
-      // Allow changing the image via gallery even if one was loaded from camera
       handleLaunchGallery();
     } else {
-      // Fallback: Show the modal if no type specified (e.g., direct navigation)
-      console.log('No specific document type provided, showing modal.');
       showModal();
     }
-  }, [initialDocType, handleBrowseDocuments, handleLaunchGallery, showModal]); // Dependencies
+  }, [initialDocType, handleBrowseDocuments, handleLaunchGallery, showModal]);
 
-  // --- Navigation Handlers ---
+  const extractTextFromImage = async imageUri => {
+    try {
+      const result = await MLKitOCR.detectFromUri(imageUri);
+
+      if (Array.isArray(result) && result.length > 0) {
+        return result.map(block => block.text).join(' ');
+      } else {
+        if (result && Array.isArray(result.blocks)) {
+          return result.blocks.map(block => block.text).join(' ');
+        }
+      }
+      return '';
+    } catch (error) {
+      console.error('OCR Error:', error);
+      throw new Error('Failed to extract text from image');
+    }
+  };
+
   const handleContinue = useCallback(async () => {
     if (!selectedFile) {
       Alert.alert('Selection Required', 'Please select a file to continue.');
       return;
     }
 
-    console.log('--- Starting Translation Process ---');
-    console.log(
-      'Selected File:',
-      selectedFile.name,
-      selectedFile.size
-        ? `(${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)`
-        : '(Size N/A)',
-      selectedFile.type,
-    );
-    console.log('File URI:', selectedFile.uri);
-    console.log(
-      'Source Language:',
-      selectedSourceLang.label,
-      `(${selectedSourceLang.value})`,
-    );
-    console.log(
-      'Target Language:',
-      selectedTargetLang.label,
-      `(${selectedTargetLang.value})`,
-    );
-
+    setIsLoading(true);
     const token = await AsyncStorage.getItem('userToken');
 
     try {
-      const formData = new FormData();
-      formData.append('documentName', selectedFile.name);
-      formData.append('file', {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.type || 'application/octet-stream',
-      });
+      // Logic for IMAGE file
+      if (selectedFile.type.startsWith('image/')) {
+        const extractedText = await extractTextFromImage(selectedFile.uri);
 
-      const response = await axios.post(UploadDocumentUrl, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`, // Replace with your actual token
-        },
-      });
+        if (!extractedText) {
+          throw new Error('No text could be extracted from the image.');
+        }
 
-      ToastAndroid.show('Upload successful!', ToastAndroid.SHORT);
-      // Optionally navigate to the next screen
-      // navigation.navigate('ProcessingScreen', { ... });
+        const responseText = await axios.post(
+          TranslateTextUrl,
+          {
+            documentName: selectedFile.name,
+            targetLanguage: selectedTargetLang.value,
+            text: extractedText,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+        ToastAndroid.show('Translation successful!', ToastAndroid.SHORT);
+        console.log(responseText.data);
+
+        // Logic for PDF file
+      } else if (selectedFile.type === 'application/pdf') {
+        const formData = new FormData();
+        formData.append('documentName', selectedFile.name);
+        formData.append('targetLanguage', selectedTargetLang.value);
+        formData.append('file', {
+          uri: selectedFile.uri,
+          name: selectedFile.name,
+          type: selectedFile.type,
+        });
+
+        const responsePDF = await axios.post(UploadDocumentUrl, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        ToastAndroid.show('Upload successful!', ToastAndroid.SHORT);
+        console.log(responsePDF.data);
+      } else {
+        throw new Error(`Unsupported file type: ${selectedFile.type}`);
+      }
+      // Navigate to Home Screen on success
+      navigation.navigate('MainApp');
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Processing Error:', error);
       Alert.alert(
         'Error',
-        error.response?.data?.message || 'Failed to upload document.',
+        error.response?.data?.message ||
+          error.message ||
+          'Failed to process document.',
       );
+    } finally {
+      setIsLoading(false);
     }
-  }, [selectedFile, selectedSourceLang, selectedTargetLang, navigation]);
+  }, [selectedFile, selectedTargetLang, navigation]);
 
   const handleGoBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
 
-  // --- Language Menu Handlers ---
   const openSourceMenu = useCallback(() => setSourceMenuVisible(true), []);
   const closeSourceMenu = useCallback(() => setSourceMenuVisible(false), []);
   const openTargetMenu = useCallback(() => setTargetMenuVisible(true), []);
   const closeTargetMenu = useCallback(() => setTargetMenuVisible(false), []);
-
   const handleSelectSourceLang = useCallback(lang => {
     setSelectedSourceLang(lang);
     closeSourceMenu();
-  }, []); // Dependency: closeSourceMenu
-
+  }, []);
   const handleSelectTargetLang = useCallback(lang => {
     setSelectedTargetLang(lang);
     closeTargetMenu();
-  }, []); // Dependency: closeTargetMenu
+  }, []);
 
-  // --- Render Component ---
   return (
     <View style={styles.container}>
       <Appbar.Header style={styles.appBar}>
-        {' '}
         <Appbar.BackAction onPress={handleGoBack} />
         <Appbar.Content
           title="Upload Content"
@@ -339,21 +273,16 @@ export default function UploadScreen() {
         />
       </Appbar.Header>
 
-      {/* Main Content Area */}
       <ScrollView
         style={styles.contentScroll}
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled" // Good practice for scrollviews with inputs/menus
-      >
+        keyboardShouldPersistTaps="handled">
         <Text style={styles.infoText}>
           {selectedFile
             ? 'Review selection and languages'
-            : initialDocType
-            ? `Select a ${initialDocType} file and languages`
-            : 'Select content source for translation'}
+            : `Select a ${initialDocType || 'file'} and languages`}
         </Text>
 
-        {/* Upload Box Trigger */}
         <TouchableOpacity onPress={handleUploadBoxPress} activeOpacity={0.7}>
           <View style={styles.uploadBox}>
             <Icon
@@ -371,15 +300,6 @@ export default function UploadScreen() {
                 ? selectedFile.name
                 : `Tap to select ${initialDocType || 'source'}`}
             </Text>
-            {!selectedFile && (
-              <Text style={styles.uploadHintText}>
-                {initialDocType === 'PDF' &&
-                  'Browse device documents  \n (Choose Image that contains text)'}
-                {initialDocType === 'Image' &&
-                  'Choose from gallery  \n (Choose Image that contains text)'}
-                {!initialDocType && 'Gallery or Documents'}
-              </Text>
-            )}
             {selectedFile && (
               <Text style={styles.uploadHintText}>
                 Size:{' '}
@@ -387,46 +307,12 @@ export default function UploadScreen() {
                   ? (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB'
                   : 'N/A'}
                 {' | '}Type: {selectedFile.type || 'N/A'}
-                {'\n'}(Tap to change selection) {/* Hint to re-select */}
+                {'\n'}(Tap to change selection)
               </Text>
             )}
           </View>
         </TouchableOpacity>
 
-        {/* Language Selection: Source */}
-        <View style={styles.languageSection}>
-          <Text style={styles.languageLabel}>Source Language</Text>
-          <Menu
-            visible={sourceMenuVisible}
-            onDismiss={closeSourceMenu}
-            anchor={
-              <TouchableOpacity
-                style={styles.languageSelector}
-                onPress={openSourceMenu}
-                activeOpacity={0.8}>
-                <Text style={styles.languageSelectorText}>
-                  {selectedSourceLang.label}
-                </Text>
-                <Icon
-                  name="chevron-down"
-                  size={24}
-                  color={theme.colors.onSurfaceVariant}
-                />
-              </TouchableOpacity>
-            }>
-            {availableLanguages.map(lang => (
-              <Menu.Item
-                key={lang.value}
-                onPress={() => handleSelectSourceLang(lang)}
-                title={lang.label}
-                // Optional: Style the selected item differently
-                // titleStyle={selectedSourceLang.value === lang.value ? { color: theme.colors.primary } : {}}
-              />
-            ))}
-          </Menu>
-        </View>
-
-        {/* Language Selection: Target */}
         <View style={styles.languageSection}>
           <Text style={styles.languageLabel}>Target Language</Text>
           <Menu
@@ -435,8 +321,7 @@ export default function UploadScreen() {
             anchor={
               <TouchableOpacity
                 style={styles.languageSelector}
-                onPress={openTargetMenu}
-                activeOpacity={0.8}>
+                onPress={openTargetMenu}>
                 <Text style={styles.languageSelectorText}>
                   {selectedTargetLang.label}
                 </Text>
@@ -452,43 +337,51 @@ export default function UploadScreen() {
                 key={lang.value}
                 onPress={() => handleSelectTargetLang(lang)}
                 title={lang.label}
-                // titleStyle={selectedTargetLang.value === lang.value ? { color: theme.colors.primary } : {}}
               />
             ))}
           </Menu>
         </View>
       </ScrollView>
 
-      {/* Bottom Buttons Area */}
+      {/* --- Bottom Buttons Area --- */}
       <View style={styles.buttonContainer}>
         <Button
           mode="outlined"
           onPress={handleGoBack}
           style={[styles.button, styles.backButton]}
           labelStyle={styles.buttonLabel}
-          accessibilityLabel="Go back">
+          disabled={isLoading} // Also disable back button while loading
+        >
           Back
         </Button>
-        <Button
-          mode="contained"
-          onPress={handleContinue}
-          style={[styles.button, styles.continueButton]}
-          labelStyle={styles.buttonLabel}
-          disabled={!selectedFile} // Disable if no file is selected
-          accessibilityLabel="Continue with selected file">
-          Continue
-        </Button>
+
+        {/* This section now shows either the button or the loader */}
+        <View style={[styles.button, styles.continueButtonWrapper]}>
+          {isLoading ? (
+            <View style={styles.loadingWrapper}>
+              <ActivityIndicator size="small" color={theme.colors.onPrimary} />
+              <Text style={styles.loadingText}>Processing...</Text>
+            </View>
+          ) : (
+            <Button
+              mode="contained"
+              onPress={handleContinue}
+              style={styles.continueButton}
+              labelStyle={styles.buttonLabel}
+              disabled={!selectedFile}>
+              Continue
+            </Button>
+          )}
+        </View>
       </View>
 
-      {/* Selection Modal (Fallback) */}
+      {/* --- Selection Modal (Fallback) --- */}
       <ReactNativeModal
         visible={isModalVisible}
         transparent={true}
-        animationType="fade" // Or 'slide'
-        onRequestClose={hideModal} // Handle Android back button press
-      >
+        animationType="fade"
+        onRequestClose={hideModal}>
         <Pressable style={styles.modalBackdrop} onPress={hideModal}>
-          {/* Prevent clicks inside the modal from closing it */}
           <Pressable
             style={[
               styles.modalContentContainer,
@@ -498,13 +391,9 @@ export default function UploadScreen() {
             <Text style={[styles.modalTitle, {color: theme.colors.onSurface}]}>
               Select Source
             </Text>
-
-            {/* Gallery Option */}
             <TouchableOpacity
               style={styles.modalOptionButton}
-              onPress={handleLaunchGallery}
-              accessibilityRole="button"
-              accessibilityLabel="Choose from Gallery">
+              onPress={handleLaunchGallery}>
               <Icon
                 name="image-multiple"
                 size={24}
@@ -516,22 +405,13 @@ export default function UploadScreen() {
                   styles.modalOptionText,
                   {color: theme.colors.onSurface},
                 ]}>
-                Choose from Gallery (Photos Only)
+                Photos
               </Text>
             </TouchableOpacity>
-            <View
-              style={[
-                styles.modalDivider,
-                {backgroundColor: theme.colors.outlineVariant},
-              ]}
-            />
-
-            {/* Document Option */}
+            <View style={styles.modalDivider} />
             <TouchableOpacity
               style={styles.modalOptionButton}
-              onPress={handleBrowseDocuments}
-              accessibilityRole="button"
-              accessibilityLabel="Browse Documents">
+              onPress={handleBrowseDocuments}>
               <Icon
                 name="file-document-outline"
                 size={24}
@@ -543,30 +423,14 @@ export default function UploadScreen() {
                   styles.modalOptionText,
                   {color: theme.colors.onSurface},
                 ]}>
-                Browse Documents (PDF)
-              </Text>
-            </TouchableOpacity>
-            <View
-              style={[
-                styles.modalDivider,
-                {backgroundColor: theme.colors.outlineVariant},
-              ]}
-            />
-
-            {/* Cancel Button */}
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={hideModal}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel selection">
-              <Text
-                style={[styles.modalCancelText, {color: theme.colors.primary}]}>
-                Cancel
+                Documents (PDF)
               </Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
       </ReactNativeModal>
+
+      {/* The Dialog and Portal have been removed */}
     </View>
   );
 }
@@ -579,22 +443,20 @@ const createStyles = theme =>
       backgroundColor: theme.colors.background,
     },
     appBar: {
-      // backgroundColor: theme.colors.surface, // Optional: Different background for AppBar
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: theme.colors.outlineVariant,
     },
     headerTitle: {
       fontWeight: 'bold',
       textAlign: 'left',
-      // fontSize: 18, // Adjust size if needed
     },
     contentScroll: {
-      flex: 1, // Ensure ScrollView takes available space
+      flex: 1,
     },
     content: {
       padding: 20,
-      paddingTop: 30, // More space below AppBar
-      paddingBottom: 40, // Space at the bottom
+      paddingTop: 30,
+      paddingBottom: 40,
     },
     infoText: {
       textAlign: 'center',
@@ -603,21 +465,21 @@ const createStyles = theme =>
       marginBottom: 25,
     },
     uploadBox: {
-      height: 180, // Adjust height as needed
+      height: 180,
       borderWidth: 2,
       borderColor: theme.colors.primary,
       borderStyle: 'dashed',
-      borderRadius: theme.roundness * 2, // Consistent rounding
+      borderRadius: theme.roundness * 2,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: theme.colors.primaryContainer + '4D', // Use theme color with alpha
+      backgroundColor: theme.colors.primaryContainer + '4D',
       padding: 20,
       marginBottom: 30,
     },
     uploadBoxText: {
       marginTop: 15,
       fontSize: 16,
-      color: theme.colors.primary, // Use primary text color
+      color: theme.colors.primary,
       fontWeight: '500',
       textAlign: 'center',
       paddingHorizontal: 10,
@@ -625,10 +487,10 @@ const createStyles = theme =>
     uploadHintText: {
       marginTop: 5,
       fontSize: 14,
-      color: theme.colors.onSurfaceVariant, // Use a secondary text color
+      color: theme.colors.onSurfaceVariant,
       textAlign: 'center',
       paddingHorizontal: 10,
-      lineHeight: 18, // Improve readability for multi-line hint
+      lineHeight: 18,
     },
     languageSection: {
       marginBottom: 20,
@@ -637,18 +499,18 @@ const createStyles = theme =>
       fontSize: 14,
       color: theme.colors.onSurfaceVariant,
       marginBottom: 8,
-      fontWeight: 'bold', // Make label bold
+      fontWeight: 'bold',
     },
     languageSelector: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       borderWidth: 1,
-      borderColor: theme.colors.outline, // Use theme outline color
-      borderRadius: theme.roundness, // Standard rounding
+      borderColor: theme.colors.outline,
+      borderRadius: theme.roundness,
       paddingVertical: 12,
       paddingHorizontal: 15,
-      backgroundColor: theme.colors.surface, // Background for the selector
+      backgroundColor: theme.colors.surface,
       minHeight: 50,
     },
     languageSelectorText: {
@@ -661,82 +523,80 @@ const createStyles = theme =>
       padding: 15,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: theme.colors.outlineVariant,
-      backgroundColor: theme.colors.background, // Match screen background
+      backgroundColor: theme.colors.background,
     },
     button: {
-      flex: 1, // Each button takes half the space
-      marginHorizontal: 5, // Space between buttons
-      borderRadius: theme.roundness * 2.5, // More rounded buttons
+      flex: 1,
+      marginHorizontal: 5,
     },
     backButton: {
-      borderColor: theme.colors.primary, // Outline color for back button
+      borderColor: theme.colors.primary,
+      borderRadius: theme.roundness * 2.5,
+    },
+    continueButtonWrapper: {
+      // Wrapper to hold either the button or the loader
     },
     continueButton: {
-      // Contained uses primary color by default
+      borderRadius: theme.roundness * 2.5,
     },
     buttonLabel: {
-      paddingVertical: 5, // Internal padding for button text
+      paddingVertical: 5,
       fontWeight: 'bold',
       fontSize: 15,
     },
-    // --- Modal Styles ---
+    loadingWrapper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.primary,
+      borderRadius: theme.roundness * 2.5,
+      height: 48, // Match button height
+    },
+    loadingText: {
+      marginLeft: 10,
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: theme.colors.onPrimary,
+    },
     modalBackdrop: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)', // Darker backdrop
-      justifyContent: 'center', // Center modal vertically
-      alignItems: 'center', // Center modal horizontally
-      padding: 20, // Padding around the modal content area
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
     },
     modalContentContainer: {
       width: '100%',
-      maxWidth: 450, // Max width for larger screens/tablets
-      borderRadius: theme.roundness * 3, // More prominent rounding
-      paddingTop: 20,
-      paddingBottom: 10,
-      paddingHorizontal: 0, // Use padding on inner items instead
-      backgroundColor: theme.colors.elevation.level2, // Elevated background
-      elevation: 8, // Android shadow
-      shadowColor: '#000', // iOS shadow
-      shadowOffset: {width: 0, height: 4},
-      shadowOpacity: 0.3,
-      shadowRadius: 6,
+      maxWidth: 450,
+      borderRadius: theme.roundness * 3,
+      paddingVertical: 10,
+      backgroundColor: theme.colors.elevation.level2,
+      elevation: 8,
     },
     modalTitle: {
       fontSize: 20,
       fontWeight: 'bold',
-      marginBottom: 15, // Space below title
+      marginBottom: 15,
       textAlign: 'center',
-      paddingHorizontal: 20, // Padding for title text
-      color: theme.colors.onSurface, // Use theme text color
+      paddingHorizontal: 20,
+      color: theme.colors.onSurface,
     },
     modalOptionButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 16, // Comfortable touch area
-      paddingHorizontal: 20, // Indent options
+      paddingVertical: 16,
+      paddingHorizontal: 20,
     },
     modalOptionIcon: {
-      marginRight: 20, // Space icon from text
+      marginRight: 20,
     },
     modalOptionText: {
-      fontSize: 17, // Slightly larger text for options
+      fontSize: 17,
       color: theme.colors.onSurface,
     },
     modalDivider: {
-      height: StyleSheet.hairlineWidth, // Standard divider height
-      backgroundColor: theme.colors.outlineVariant, // Use theme color
-      marginVertical: 4, // Space above/below divider
-      marginHorizontal: 20, // Indent divider line
-    },
-    modalCancelButton: {
-      marginTop: 10, // Space above cancel button
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      alignItems: 'center', // Center the cancel text
-    },
-    modalCancelText: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: theme.colors.primary, // Use primary color for cancel action
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.outlineVariant,
+      marginHorizontal: 20,
     },
   });

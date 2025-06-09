@@ -13,4 +13,6 @@ export const GoogleLoginSignupUrl = `${API_URL}/users/google`;
 
 //Document CURD APIs
 export const UploadDocumentUrl = `${API_URL}/documents/upload`;
-export const DeleteDocumentUrl = `${API_URL}/documents`;
+export const TranslateTextUrl = `${API_URL}/documents/translate`;
+export const DocumentsUrl = `${API_URL}/documents`;
+export const GetDocumentbyUserIdUrl = `${API_URL}/documents/user`;

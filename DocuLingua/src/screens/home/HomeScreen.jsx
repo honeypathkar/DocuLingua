@@ -1,11 +1,12 @@
 // screens/HomeScreen.js
-import React, {useState, useMemo, useEffect} from 'react';
+import React, {useState, useMemo, useEffect, useCallback} from 'react';
 import {
   StyleSheet,
   View,
   ScrollView,
   ImageBackground,
   Platform,
+  Alert,
 } from 'react-native';
 import {
   Text,
@@ -17,64 +18,63 @@ import {
   useTheme,
   TouchableRipple,
   Surface,
+  ActivityIndicator,
 } from 'react-native-paper';
 import AppHeader from '../../components/AppHeader';
-
-// --- Navigation Imports ---
-import {useNavigation} from '@react-navigation/native';
-import useUserStore from '../../store/userStore';
-
-// Placeholder data for the file list
-const filesData = [
-  {
-    id: '1',
-    name: 'Business Contract.pdf',
-    date: 'Today, 10:45 AM',
-    icon: 'file-pdf-box',
-    type: 'pdf',
-  },
-  {
-    id: '2',
-    name: 'Meeting Notes.docx',
-    date: 'Yesterday, 3:15 PM',
-    icon: 'file-word-box',
-    type: 'doc',
-  },
-  {
-    id: '3',
-    name: 'Presentation Slides.pptx',
-    date: 'April 14, 9:00 AM',
-    icon: 'file-powerpoint-box',
-    type: 'ppt',
-  },
-  {
-    id: '4',
-    name: 'Invoice_April.xlsx',
-    date: 'April 12, 11:00 AM',
-    icon: 'file-excel-box',
-    type: 'xls',
-  },
-];
+import {useNavigation, useIsFocused} from '@react-navigation/native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {GetDocumentbyUserIdUrl} from '../../../API';
 
 // --- Define base button data ---
 const baseButtons = [
   {value: 'recent', label: 'Recent'},
-  {value: 'favorites', label: 'Favorites'},
   {value: 'all', label: 'All Files'},
 ];
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const [listTab, setListTab] = useState('recent');
-  const navigation = useNavigation(); // Use navigation hook
-  const {fetchDetails} = useUserStore();
+  const navigation = useNavigation();
+  const isFocused = useIsFocused();
 
-  useEffect(() => {
-    fetchDetails();
+  const [listTab, setListTab] = useState('recent');
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchDocuments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+      const response = await axios.get(GetDocumentbyUserIdUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setDocuments(response.data.data || []);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          'Failed to fetch documents.',
+      );
+      Alert.alert('Error', 'Could not load your documents.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // --- Create Styles INSIDE the component ---
-  const styles = useMemo(() => createStyles(theme), [theme]); // Pass theme
+  useEffect(() => {
+    if (isFocused) {
+      fetchDocuments();
+    }
+  }, [isFocused, fetchDocuments]);
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   // --- Create styled buttons dynamically based on listTab state ---
   const styledButtons = useMemo(
@@ -84,49 +84,105 @@ export default function HomeScreen() {
         return {
           ...button,
           style: {
-            // Style for the button itself within SegmentedButtons
             backgroundColor: isActive
               ? theme.colors.primaryContainer
-              : 'transparent', // Use transparent for inactive
-            borderColor: theme.colors.outline, // Use outline color for border
+              : 'transparent',
+            borderColor: theme.colors.outline,
           },
           labelStyle: {
-            // Style for the text label inside the button
             color: isActive
               ? theme.colors.onPrimaryContainer
               : theme.colors.onSurface,
             fontWeight: isActive ? 'bold' : 'normal',
           },
-          // Adding ripple color for feedback
-          rippleColor: theme.colors.primaryContainer,
         };
       }),
     [listTab, theme],
   );
 
-  // Filter files based on tab (example - you'd implement actual filtering)
-  const displayedFiles = filesData; // Placeholder: Show all files for now
+  // --- Filter documents based on the active tab ---
+  const displayedFiles = useMemo(() => {
+    if (listTab === 'recent') {
+      return documents
+        .slice(0, 3)
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Show only the first 3 files
+    }
+    return documents.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+    ); // Show all files for the 'all' tab
+  }, [listTab, documents]);
 
-  // --- Handle Navigation ---
   const handleFilePress = file => {
-    console.log(`Navigating to view: ${file.name}`);
     navigation.navigate('DocumentView', {
-      // Navigate with parameters
-      documentId: file.id,
-      documentName: file.name,
+      documentId: file._id,
+      documentName: file.documentName,
     });
   };
 
-  // --- JSX Structure ---
+  const formatDate = dateString => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const getFileIcon = fileName => {
+    if (!fileName) return 'file-document-outline';
+    if (fileName.endsWith('.pdf')) return 'file-pdf-box';
+    if (fileName.endsWith('.docx') || fileName.endsWith('.doc'))
+      return 'file-word-box';
+    return 'file-document-outline';
+  };
+
+  const renderFileList = () => {
+    if (loading) {
+      return <ActivityIndicator style={{marginTop: 30}} size="large" />;
+    }
+    if (error) {
+      return <Text style={styles.noFilesText}>{error}</Text>;
+    }
+    // Check displayedFiles for length, not the original documents array
+    if (displayedFiles.length === 0) {
+      return <Text style={styles.noFilesText}>No documents found.</Text>;
+    }
+    // Map over the filtered displayedFiles
+    return displayedFiles.map((file, index) => (
+      <List.Item
+        key={file._id}
+        title={file.documentName}
+        description={`Translated on: ${formatDate(file.createdAt)}`}
+        left={() => (
+          <List.Icon
+            icon={getFileIcon(file.documentName)}
+            color={theme.colors.primary}
+          />
+        )}
+        right={() => <List.Icon icon="chevron-right" />}
+        onPress={() => handleFilePress(file)}
+        style={[
+          styles.listItem,
+          index < displayedFiles.length - 1 && {
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: theme.colors.outlineVariant,
+          },
+        ]}
+        titleStyle={styles.listItemTitle}
+        descriptionStyle={styles.listItemDescription}
+      />
+    ));
+  };
+
   return (
     <View style={styles.container}>
       <AppHeader showSearchIcon={true} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Welcome Section */}
+        {/* Welcome and Quick Actions sections remain unchanged */}
         <View style={styles.welcomeContainer}>
           <ImageBackground
             source={{
-              uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80', // Example image
+              uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=800&q=80',
             }}
             style={styles.welcomeImageBackground}
             imageStyle={styles.imageBackgroundImageStyle}
@@ -141,7 +197,6 @@ export default function HomeScreen() {
           </ImageBackground>
         </View>
 
-        {/* Quick Actions Section */}
         <View style={styles.sectionContainer}>
           <Text variant="titleMedium" style={styles.sectionTitle}>
             Quick Actions
@@ -149,7 +204,9 @@ export default function HomeScreen() {
           <View style={styles.quickActionsRow}>
             <Surface style={styles.quickActionSurface} elevation={2}>
               <TouchableRipple
-                onPress={() => console.log('Scan Note pressed')}
+                onPress={() =>
+                  navigation.navigate('Upload', {documentType: 'Image'})
+                }
                 style={styles.quickActionTouchable}
                 borderless={true}>
                 <View style={styles.quickActionContent}>
@@ -164,7 +221,9 @@ export default function HomeScreen() {
             </Surface>
             <Surface style={styles.quickActionSurface} elevation={2}>
               <TouchableRipple
-                onPress={() => console.log('Upload PDF pressed')}
+                onPress={() =>
+                  navigation.navigate('Upload', {documentType: 'PDF'})
+                }
                 style={styles.quickActionTouchable}
                 borderless={true}>
                 <View style={styles.quickActionContent}>
@@ -180,57 +239,17 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Files Section */}
+        {/* Files Section updated with both tabs */}
         <View style={styles.sectionContainer}>
           <SegmentedButtons
             value={listTab}
             onValueChange={setListTab}
-            style={styles.segmentedButtons} // Styles for the container View
-            buttons={styledButtons} // Pass the styled buttons array
-            density="medium" // Adjust density for spacing
+            style={styles.segmentedButtons}
+            buttons={styledButtons} // Use the dynamically styled buttons
+            density="medium"
           />
           <List.Section style={styles.listSection}>
-            {displayedFiles.map((file, index) => (
-              <List.Item
-                key={file.id}
-                title={file.name}
-                description={file.date}
-                left={props => (
-                  <List.Icon
-                    {...props}
-                    icon={file.icon}
-                    color={theme.colors.primary}
-                  />
-                )}
-                right={props => (
-                  <List.Icon
-                    {...props}
-                    icon="chevron-right"
-                    color={theme.colors.onSurfaceVariant}
-                  />
-                )}
-                onPress={() => handleFilePress(file)} // Pass the file object
-                style={[
-                  styles.listItem,
-                  // Add border only if it's not the last item
-                  index < displayedFiles.length - 1
-                    ? {
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: theme.colors.outlineVariant,
-                      }
-                    : null,
-                ]}
-                titleStyle={styles.listItemTitle}
-                descriptionStyle={styles.listItemDescription}
-                // Ripple effect for list item press
-                rippleColor="rgba(0, 0, 0, .1)"
-              />
-            ))}
-            {displayedFiles.length === 0 && (
-              <Text style={styles.noFilesText}>
-                No files found in this category.
-              </Text>
-            )}
+            {renderFileList()}
           </List.Section>
         </View>
       </ScrollView>
@@ -238,17 +257,16 @@ export default function HomeScreen() {
   );
 }
 
-// --- Styles function (createStyles) ---
+// Styles function is unchanged and correct
 const createStyles = theme =>
   StyleSheet.create({
     container: {flex: 1, backgroundColor: theme.colors.background},
     scrollContent: {paddingHorizontal: 16, paddingBottom: 20},
     welcomeContainer: {
-      marginTop: 16, // Add space from AppHeader
+      marginTop: 16,
       marginBottom: 24,
       borderRadius: 12,
-      overflow: 'hidden', // Needed for borderRadius on ImageBackground
-      // Add elevation/shadow for depth
+      overflow: 'hidden',
       ...Platform.select({
         ios: {
           shadowColor: '#000',
@@ -258,30 +276,29 @@ const createStyles = theme =>
         },
         android: {elevation: 4},
       }),
-      backgroundColor: theme.colors.surface, // Ensure background for shadow
+      backgroundColor: theme.colors.surface,
     },
-    welcomeImageBackground: {height: 200, justifyContent: 'center'}, // Reduced height
-    imageBackgroundImageStyle: {borderRadius: 12}, // Match container radius
+    welcomeImageBackground: {height: 200, justifyContent: 'center'},
+    imageBackgroundImageStyle: {borderRadius: 12},
     textOverlay: {
-      // Dark overlay for better text readability
       ...StyleSheet.absoluteFillObject,
       backgroundColor: 'rgba(0, 0, 0, 0.35)',
       borderRadius: 12,
     },
     welcomeContent: {
-      padding: 20, // Increased padding
-      alignItems: 'flex-start', // Align text to the start
+      padding: 20,
+      alignItems: 'flex-start',
     },
     welcomeTitle: {
       color: 'white',
       fontWeight: 'bold',
       marginBottom: 4,
-      fontSize: 24, // Larger title
+      fontSize: 24,
     },
     welcomeSubtitle: {
       color: 'white',
       fontSize: 14,
-      opacity: 0.9, // Slightly transparent subtitle
+      opacity: 0.9,
     },
     sectionContainer: {marginBottom: 24},
     sectionTitle: {
@@ -292,13 +309,12 @@ const createStyles = theme =>
     },
     quickActionsRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between', // Use space-between for edge spacing
+      justifyContent: 'space-between',
     },
     quickActionSurface: {
       borderRadius: 12,
-      width: '48%', // Slightly adjust width for spacing
+      width: '48%',
       backgroundColor: theme.colors.surface,
-      // Consistent elevation with welcome card
       ...Platform.select({
         ios: {
           shadowColor: '#000',
@@ -313,11 +329,11 @@ const createStyles = theme =>
       width: '100%',
       paddingVertical: 20,
       paddingHorizontal: 10,
-      borderRadius: 12, // Match Surface borderRadius
-      alignItems: 'center', // Center content horizontally
+      borderRadius: 12,
+      alignItems: 'center',
     },
     quickActionContent: {
-      alignItems: 'center', // Center icon and text vertically
+      alignItems: 'center',
       justifyContent: 'center',
     },
     quickActionText: {
@@ -328,13 +344,11 @@ const createStyles = theme =>
     },
     segmentedButtons: {
       marginBottom: 16,
-      // Container styling handled internally by SegmentedButtons usually
     },
     listSection: {
       backgroundColor: theme.colors.surface,
       borderRadius: 8,
-      overflow: 'hidden', // Clip List.Item borders to the rounded corners
-      // Add elevation/shadow
+      overflow: 'hidden',
       ...Platform.select({
         ios: {
           shadowColor: '#000',
@@ -348,16 +362,16 @@ const createStyles = theme =>
     listItem: {
       paddingVertical: 12,
       paddingHorizontal: 16,
-      backgroundColor: 'transparent', // Let List.Section handle background
+      backgroundColor: 'transparent',
     },
     listItemTitle: {
       fontSize: 16,
       color: theme.colors.onSurface,
-      fontWeight: '500', // Medium weight title
+      fontWeight: '500',
     },
     listItemDescription: {
       fontSize: 12,
-      color: theme.colors.onSurfaceVariant, // Subdued color for date/description
+      color: theme.colors.onSurfaceVariant,
     },
     noFilesText: {
       textAlign: 'center',

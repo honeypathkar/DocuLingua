@@ -1,26 +1,26 @@
 // screens/DocumentViewScreen.js
 import React, {useState, useEffect} from 'react';
-import {View, StyleSheet, ScrollView, Platform} from 'react-native';
-// --- Import Appbar and useNavigation ---
+import {View, StyleSheet, ScrollView, Platform, Alert} from 'react-native';
 import {
   Text,
   useTheme,
   TouchableRipple,
   ActivityIndicator,
-  Appbar, // Import Appbar
+  Appbar,
   Icon,
 } from 'react-native-paper';
-import {useRoute, useNavigation} from '@react-navigation/native'; // Import useNavigation
-// --- End Imports ---
+import {useRoute, useNavigation} from '@react-navigation/native';
+import axios from 'axios';
+import {DocumentsUrl} from '../../../API'; // Import your API URL
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // --- Main Screen Component ---
 export default function DocumentViewScreen() {
   const theme = useTheme();
   const route = useRoute();
-  const navigation = useNavigation(); // Get navigation object
+  const navigation = useNavigation();
 
-  const documentId = route.params?.documentId ?? 'unknown';
-  const documentName = route.params?.documentName ?? 'Document';
+  const {documentId, documentName} = route.params;
 
   const [activeTab, setActiveTab] = useState('original');
   const [originalText, setOriginalText] = useState('');
@@ -28,31 +28,45 @@ export default function DocumentViewScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // --- Simulate fetching data (useEffect remains the same) ---
+  // --- Fetch document details from the API ---
   useEffect(() => {
-    console.log(`Fetching content for document ID: ${documentId}`);
-    setLoading(true);
-    setError(null);
-    const timer = setTimeout(() => {
+    const fetchDocumentDetails = async () => {
+      if (!documentId) {
+        setError('No document ID provided.');
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError(null);
       try {
-        if (documentId === 'error') {
-          throw new Error('Failed to load document content.');
-        }
+        const token = await AsyncStorage.getItem('userToken');
+        const response = await axios.get(`${DocumentsUrl}/${documentId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        console.log(response.data);
+        // Assuming the API returns an object with these properties
         setOriginalText(
-          `This is the ORIGINAL content for ${documentName} (ID: ${documentId}).\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.`,
+          response.data.originalText || 'No original content found.',
         );
         setTranslatedText(
-          `Este es el contenido TRADUCIDO para ${documentName} (ID: ${documentId}).\n\nUt enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.`,
+          response.data.translatedText || 'No translated content found.',
         );
-        setLoading(false);
       } catch (err) {
-        console.error('Error fetching document:', err);
-        setError(err.message || 'An unexpected error occurred.');
+        const errorMessage =
+          err.response?.data?.message ||
+          err.message ||
+          'Failed to load document.';
+        setError(errorMessage);
+        Alert.alert('Error', errorMessage);
+      } finally {
         setLoading(false);
       }
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [documentId, documentName]);
+    };
+
+    fetchDocumentDetails();
+  }, [documentId]);
 
   // --- renderContent function remains the same ---
   const renderContent = () => {
@@ -91,16 +105,13 @@ export default function DocumentViewScreen() {
     );
   };
 
-  // --- Styles ---
   const styles = getStyles(theme);
 
   return (
     <View style={styles.container}>
-      {/* --- Add Appbar --- */}
       <Appbar.Header
         style={{backgroundColor: theme.colors.surface}}
-        statusBarHeight={0} // Adjust if status bar is handled differently
-      >
+        statusBarHeight={0}>
         <Appbar.BackAction
           onPress={() => navigation.goBack()}
           color={theme.colors.onSurface}
@@ -108,15 +119,11 @@ export default function DocumentViewScreen() {
         <Appbar.Content
           title={documentName}
           titleStyle={styles.appbarTitle}
-          numberOfLines={1} // Ensure long titles don't wrap excessively
+          numberOfLines={1}
           color={theme.colors.onSurface}
         />
-        {/* Add other actions if needed, e.g., share, translate options */}
-        {/* <Appbar.Action icon="share-variant" onPress={() => {}} color={theme.colors.onSurface} /> */}
       </Appbar.Header>
-      {/* --- End Appbar --- */}
 
-      {/* Tab Buttons Container */}
       <View style={styles.tabBar}>
         <TouchableRipple
           onPress={() => setActiveTab('original')}
@@ -156,7 +163,6 @@ export default function DocumentViewScreen() {
         </TouchableRipple>
       </View>
 
-      {/* Content Area */}
       <View style={styles.contentArea}>{renderContent()}</View>
     </View>
   );
