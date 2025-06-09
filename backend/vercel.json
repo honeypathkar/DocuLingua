@@ -13,7 +13,7 @@
     }
   ],
   "functions": {
-    "api/**/*.js": {
+    "app.js": {
       "includeFiles": "node_modules/tesseract.js-core/tesseract-core-simd.wasm",
       "maxDuration": 30
     }
