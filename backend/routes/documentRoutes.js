@@ -7,6 +7,7 @@ const {
   getAllDocuments,
   getUserDocuments,
   updateDocument,
+  deleteAllDocuments,
 } = require("../controllers/documentController");
 const upload = require("../utils/multer");
 const verifyToken = require("../middleware/verifyToken");
@@ -21,6 +22,9 @@ router.get("/user", verifyToken, getUserDocuments);
 
 //Get all from database
 router.get("/all", verifyToken, getAllDocuments);
+
+//Delete all documents for the current user
+router.delete("/all", verifyToken, deleteAllDocuments);
 
 //Delete by id
 router.delete("/:docId", verifyToken, deleteDocument);

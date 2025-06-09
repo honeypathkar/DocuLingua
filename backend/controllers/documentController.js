@@ -13,7 +13,7 @@ const { translateTextRapidAPI } = require("./translationController");
 const uploadDocument = async (req, res) => {
   try {
     const userId = req.userId;
-    const { documentName } = req.body;
+    const { documentName, targetLanguage } = req.body;
 
     if (!userId)
       return res.status(401).json({ message: "User not authenticated" });
@@ -21,6 +21,18 @@ const uploadDocument = async (req, res) => {
       return res.status(400).json({ message: "Document name is required" });
     if (!req.file)
       return res.status(400).json({ message: "File is required for upload" });
+
+    // Check for duplicate document name for the same user
+    const existingDoc = await DocumentModel.findOne({
+      userId,
+      documentName: { $regex: new RegExp(`^${documentName}$`, "i") }, // Case-insensitive match
+    });
+
+    if (existingDoc) {
+      return res.status(409).json({
+        message: `Document with name "${documentName}" already exists.`,
+      });
+    }
 
     const originalFileName = req.file.originalname;
     const fileExt = path.extname(originalFileName);
@@ -75,7 +87,11 @@ const uploadDocument = async (req, res) => {
     // Translate
     let translated = "";
     try {
-      translated = await translateTextRapidAPI(cleanedText, "auto", "hi");
+      translated = await translateTextRapidAPI(
+        cleanedText,
+        "auto",
+        targetLanguage
+      );
     } catch (err) {
       console.error("Translation failed:", err);
       translated = "Translation failed";
@@ -287,6 +303,58 @@ const updateDocument = async (req, res) => {
   }
 };
 
+const deleteAllDocuments = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    // Get all documents of the user
+    const userDocuments = await DocumentModel.find({ userId });
+
+    if (!userDocuments.length) {
+      return res.status(200).json({
+        message: "No documents found to delete",
+      });
+    }
+
+    // Remove documents from MongoDB
+    const deleteResult = await DocumentModel.deleteMany({ userId });
+
+    if (!deleteResult.deletedCount) {
+      return res.status(500).json({
+        message: "Failed to delete documents from database",
+      });
+    }
+
+    // Remove references from the user document
+    const userUpdateResult = await UserModel.findByIdAndUpdate(
+      userId,
+      { $set: { documents: [] } },
+      { new: true }
+    );
+
+    if (!userUpdateResult) {
+      return res.status(500).json({
+        message: "Failed to update user document references",
+      });
+    }
+
+    return res.status(200).json({
+      message: "All documents deleted successfully",
+      deletedCount: deleteResult.deletedCount,
+    });
+  } catch (error) {
+    console.error("Delete All Documents Error:", error);
+    return res.status(500).json({
+      message: "Failed to delete documents",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   uploadDocument,
   deleteDocument,
@@ -294,4 +362,5 @@ module.exports = {
   getAllDocuments,
   getUserDocuments,
   updateDocument,
+  deleteAllDocuments,
 };
