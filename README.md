@@ -104,5 +104,8 @@ npx react-native run-android # or run-ios
 - ✅ Translation complete (supports 5 target languages)
 - 🔄 Project is still under active development
 
+## 📲 I've uploaded the APK file for testing.  
+- 👉 [Download DocuLingua APK](https://drive.google.com/drive/folders/1pIE8GczcQsXykKmlXdVCjrTBN6kM-KGL?usp=drive_link)  
+- Feel free to try it out and share your feedback!
 
 ## 👨‍💻 Built with ❤️ by Honey Pathkar
