@@ -1,4 +1,4 @@
-import React, {useState, useMemo, useEffect, useCallback} from 'react';
+import React, {useState, useMemo, useEffect} from 'react';
 import {
   StyleSheet,
   View,
@@ -20,11 +20,9 @@ import {
 } from 'react-native-paper';
 import AppHeader from '../../components/AppHeader';
 import {useNavigation, useIsFocused} from '@react-navigation/native';
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {GetDocumentbyUserIdUrl} from '../../../API';
-import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
 import ImageCropPicker from 'react-native-image-crop-picker';
+import DocumentListSkeleton from '../../components/DocumentSkeleton';
+import useDocumentStore from '../../store/documentStore'; // Import the store
 
 const baseButtons = [
   {value: 'recent', label: 'Recent'},
@@ -36,53 +34,20 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
 
+  // State from Zustand store
+  const {documents, loading, error, page, totalPages, fetchDocuments} =
+    useDocumentStore();
+
+  // Local UI state
   const [listTab, setListTab] = useState('recent');
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalDocuments, setTotalDocuments] = useState(0);
-  const MAX_IMAGE_SIZE_MB = 10; // Set maximum image size to 10 MB
-
-  const fetchDocuments = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) {
-        throw new Error('Authentication token not found.');
-      }
-      const response = await axios.get(
-        `${GetDocumentbyUserIdUrl}?page=${page}&limit=${limit}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      setDocuments(response.data.data.documents);
-      setTotalPages(response.data.data.pagination.totalPages);
-      setTotalDocuments(response.data.data.pagination.totalDocuments);
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          'Failed to fetch documents.',
-      );
-      Alert.alert('Error', 'Could not load your documents.');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, limit]);
+  const MAX_IMAGE_SIZE_MB = 10;
 
   useEffect(() => {
+    // Fetch documents when the screen is focused to keep data fresh
     if (isFocused) {
-      fetchDocuments();
+      fetchDocuments(page);
     }
-  }, [isFocused, fetchDocuments]);
+  }, [isFocused, page, fetchDocuments]);
 
   const handleOptionPress = docType => {
     navigation.getParent()?.navigate('UploadScreen', {documentType: docType});
@@ -102,11 +67,9 @@ export default function HomeScreen() {
       });
 
       if (image) {
-        console.log('Captured and cropped image:', image);
-
         const fileName =
           image.filename ||
-          image.path?.split('/').pop() || // extract last part of path
+          image.path?.split('/').pop() ||
           `cam_${Date.now()}.jpg`;
 
         const fileUri = image.path.startsWith('file://')
@@ -120,7 +83,6 @@ export default function HomeScreen() {
           size: image.size || 0,
         };
 
-        // Validate file size
         if (fileData.size && fileData.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
           Alert.alert(
             'Image Too Large',
@@ -192,7 +154,7 @@ export default function HomeScreen() {
   };
 
   const getFileIcon = fileName => {
-    if (!fileName) return 'file-image'; // ✅ default is now image
+    if (!fileName) return 'file-image';
     if (fileName.endsWith('.pdf')) return 'file-pdf-box';
     if (fileName.endsWith('.docx') || fileName.endsWith('.doc'))
       return 'file-word-box';
@@ -203,33 +165,39 @@ export default function HomeScreen() {
       fileName.endsWith('.gif') ||
       fileName.endsWith('.webp')
     )
-      return 'file-image'; // ✅ show image icon for image files
-    return 'file-image'; // ✅ fallback
+      return 'file-image';
+    return 'file-image';
   };
 
   const renderPagination = () => {
     return (
       <View style={styles.paginationContainer}>
         <TouchableRipple
-          onPress={() => setPage(prev => Math.max(1, prev - 1))}
-          disabled={page === 1}>
+          onPress={() => fetchDocuments(page - 1)}
+          disabled={page === 1 || loading}>
           <Icon
             source="chevron-left"
             size={24}
-            color={page === 1 ? theme.colors.disabled : theme.colors.primary}
+            color={
+              page === 1 || loading
+                ? theme.colors.disabled
+                : theme.colors.primary
+            }
           />
         </TouchableRipple>
         <Text style={styles.paginationText}>
           Page {page} of {totalPages}
         </Text>
         <TouchableRipple
-          onPress={() => setPage(prev => Math.min(totalPages, prev + 1))}
-          disabled={page === totalPages}>
+          onPress={() => fetchDocuments(page + 1)}
+          disabled={page === totalPages || loading}>
           <Icon
             source="chevron-right"
             size={24}
             color={
-              page === totalPages ? theme.colors.disabled : theme.colors.primary
+              page === totalPages || loading
+                ? theme.colors.disabled
+                : theme.colors.primary
             }
           />
         </TouchableRipple>
@@ -238,35 +206,11 @@ export default function HomeScreen() {
   };
 
   const renderFileList = () => {
-    if (loading) {
-      return (
-        <View style={{marginTop: 20}}>
-          <SkeletonPlaceholder borderRadius={8}>
-            {[...Array(5)].map((_, index) => (
-              <View
-                key={index}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginBottom: 20,
-                  paddingHorizontal: 16,
-                }}>
-                <View style={{width: 40, height: 40, borderRadius: 8}} />
-
-                <View style={{marginLeft: 12, flex: 1}}>
-                  <View style={{width: '70%', height: 14, marginBottom: 6}} />
-                  <View style={{width: '50%', height: 12}} />
-                </View>
-
-                <View style={{width: 20, height: 20, borderRadius: 10}} />
-              </View>
-            ))}
-          </SkeletonPlaceholder>
-        </View>
-      );
+    if (loading && documents.length === 0) {
+      return <DocumentListSkeleton />;
     }
 
-    if (error) {
+    if (error && documents.length === 0) {
       return <Text style={styles.noFilesText}>{error}</Text>;
     }
 
@@ -303,7 +247,7 @@ export default function HomeScreen() {
             descriptionStyle={styles.listItemDescription}
           />
         ))}
-        {listTab === 'all' && renderPagination()}
+        {listTab === 'all' && totalPages > 1 && renderPagination()}
       </>
     );
   };
@@ -385,6 +329,7 @@ export default function HomeScreen() {
   );
 }
 
+// The createStyles function remains unchanged
 const createStyles = theme => ({
   container: {flex: 1, backgroundColor: theme.colors.background},
   scrollContent: {paddingHorizontal: 16, paddingBottom: 20},
