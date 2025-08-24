@@ -1,29 +1,33 @@
 # 📱 DocuLingua
 
-**DocuLingua** is a full-stack mobile application that simplifies document management and cross-language communication. With built-in authentication, profile handling, and dynamic theming, DocuLingua is your all-in-one document companion—soon to include OCR scanning and translation capabilities.
+**DocuLingua** is a full-stack mobile application that simplifies document management and cross-language communication. With integrated authentication (including Google), profile handling, and dynamic theming, DocuLingua is your all-in-one document companion—now featuring OCR scanning and multilingual translation support.
 
 ---
 
 ## ✅ Features
 
 ### 🔐 Authentication
-- Login & Signup
+- Login & Signup (Email + Google)
 - JWT-based authentication
 - Secure account management
 
 ### 👤 Profile Management
 - Update profile details
-- Upload profile picture (via Cloudinary)
+- Upload profile picture
 - Delete account
 
-### 🎨 UI & Theming
-- Light & Dark Mode support (fully implemented)
-- Built with React Native Paper components
+### 📄 Document Tools
+- OCR-based Document Scanner (English-only detection)
+- Translate extracted text to:
+  - Hindi 🇮🇳
+  - English 🇬🇧
+  - French 🇫🇷
+  - Spanish 🇪🇸
+  - German 🇩🇪
 
-### 🧠 Upcoming Features
-- Document Scanner (OCR)
-- Multilingual Document Translation
-- Offline document access
+### 🎨 UI & Theming
+- Light & Dark Mode support
+- Built using React Native Paper components
 
 ---
 
@@ -36,15 +40,16 @@
 - React Navigation
 - Context API
 - Custom theming (light/dark)
+- ML Kit (for image text extraction)
 
 ### Backend:
 - Node.js
 - Express.js
 - MongoDB (Mongoose)
 - JWT Authentication
-- Multer (file upload)
-- Cloudinary (image hosting)
-
+- Supabase (image hosting)
+- Rapid api (for translation)
+- pdf-parse (for pdf text extraction)
 
 ---
 
@@ -60,6 +65,7 @@
 ```bash
 git clone https://github.com/honeypathkar/DocuLingua.git
 ```
+
 ### 2. Install Dependencies
 ```bash
 cd DocuLingua
@@ -72,28 +78,34 @@ npm install
 ```bash
 JWT_SECRET=your_jwt_secret_key
 MONGODB_URI=your_mongodb_connection_string
-CLOUD_NAME=your_cloudinary_cloud_name
-CLOUD_API_KEY=your_cloudinary_api_key
-CLOUD_API_SECRET=your_cloudinary_api_secret
+SUPABASE_KEY=your_supabase_api_key
 EMAIL_USER=your_email_username
 EMAIL_PASS=your_email_password
+GOOGLE_CLIENT_ID=your-google-client-id
+RAPID_API=rapid_api_key
+RAPID_API_HOST=rapid_host_url
 ```
 
 ### 4. Run Backend Server
 ```bash
+cd backend
 npm start
 ```
 
-### 4. Start the app
+### 5. Start the App
 ```bash
 cd DocuLingua
 npx react-native run-android # or run-ios
 ```
 
-## 📌 Status 
-- 🔧 Basic features complete
-- 📸 Document Scanner – in progress
-- 🌍 Translation – in progress
+## 📌 Status
+- ✅ Basic features complete
+- ✅ Document Scanner complete (English only)
+- ✅ Translation complete (supports 5 target languages)
+- 🔄 Project is still under active development
 
-## Built with ❤️ by Honey
+## 📲 I've uploaded the APK file for testing.  
+- 👉 [Download DocuLingua APK](https://drive.google.com/drive/folders/1pIE8GczcQsXykKmlXdVCjrTBN6kM-KGL?usp=drive_link)  
+- Feel free to try it out and share your feedback!
 
+## 👨‍💻 Built with ❤️ by Honey Pathkar
