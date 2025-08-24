@@ -1,4 +1,3 @@
-// screens/HomeScreen.js
 import React, {useState, useMemo, useEffect, useCallback} from 'react';
 import {
   StyleSheet,
@@ -18,15 +17,15 @@ import {
   useTheme,
   TouchableRipple,
   Surface,
-  ActivityIndicator,
 } from 'react-native-paper';
 import AppHeader from '../../components/AppHeader';
 import {useNavigation, useIsFocused} from '@react-navigation/native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {GetDocumentbyUserIdUrl} from '../../../API';
+import SkeletonPlaceholder from 'react-native-skeleton-placeholder';
+import ImageCropPicker from 'react-native-image-crop-picker';
 
-// --- Define base button data ---
 const baseButtons = [
   {value: 'recent', label: 'Recent'},
   {value: 'all', label: 'All Files'},
@@ -45,6 +44,7 @@ export default function HomeScreen() {
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalDocuments, setTotalDocuments] = useState(0);
+  const MAX_IMAGE_SIZE_MB = 10; // Set maximum image size to 10 MB
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
@@ -63,7 +63,6 @@ export default function HomeScreen() {
         },
       );
 
-      // Update states with pagination data
       setDocuments(response.data.data.documents);
       setTotalPages(response.data.data.pagination.totalPages);
       setTotalDocuments(response.data.data.pagination.totalDocuments);
@@ -89,9 +88,70 @@ export default function HomeScreen() {
     navigation.getParent()?.navigate('UploadScreen', {documentType: docType});
   };
 
+  const handleOpenCamera = async () => {
+    try {
+      const image = await ImageCropPicker.openCamera({
+        mediaType: 'photo',
+        cropping: true,
+        compressImageQuality: 1,
+        cropperToolbarTitle: 'Crop Image',
+        cropperToolbarColor: theme.colors.background,
+        cropperToolbarWidgetColor: theme.colors.onSurface,
+        cropperActiveWidgetColor: theme.colors.primary,
+        cropperStatusBarColor: theme.colors.background,
+      });
+
+      if (image) {
+        console.log('Captured and cropped image:', image);
+
+        const fileName =
+          image.filename ||
+          image.path?.split('/').pop() || // extract last part of path
+          `cam_${Date.now()}.jpg`;
+
+        const fileUri = image.path.startsWith('file://')
+          ? image.path
+          : `file://${image.path}`;
+
+        const fileData = {
+          uri: fileUri,
+          name: fileName,
+          type: image.mime || 'image/jpeg',
+          size: image.size || 0,
+        };
+
+        // Validate file size
+        if (fileData.size && fileData.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+          Alert.alert(
+            'Image Too Large',
+            `Please select an image smaller than ${MAX_IMAGE_SIZE_MB} MB.`,
+          );
+          return;
+        }
+
+        navigation.getParent()?.navigate('UploadScreen', {
+          documentType: 'Image',
+          capturedImageData: fileData,
+        });
+      } else {
+        console.warn('No image returned from camera');
+        Alert.alert('Error', 'Failed to capture image.');
+      }
+    } catch (error) {
+      if (error.code === 'E_PICKER_CANCELLED') {
+        console.log('User cancelled camera');
+      } else {
+        console.error('Camera Picker Error:', error);
+        Alert.alert(
+          'Camera Error',
+          error.message || 'An error occurred while opening the camera.',
+        );
+      }
+    }
+  };
+
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // --- Create styled buttons dynamically based on listTab state ---
   const styledButtons = useMemo(
     () =>
       baseButtons.map(button => {
@@ -132,11 +192,19 @@ export default function HomeScreen() {
   };
 
   const getFileIcon = fileName => {
-    if (!fileName) return 'file-document-outline';
+    if (!fileName) return 'file-image'; // ✅ default is now image
     if (fileName.endsWith('.pdf')) return 'file-pdf-box';
     if (fileName.endsWith('.docx') || fileName.endsWith('.doc'))
       return 'file-word-box';
-    return 'file-document-outline';
+    if (
+      fileName.endsWith('.jpg') ||
+      fileName.endsWith('.jpeg') ||
+      fileName.endsWith('.png') ||
+      fileName.endsWith('.gif') ||
+      fileName.endsWith('.webp')
+    )
+      return 'file-image'; // ✅ show image icon for image files
+    return 'file-image'; // ✅ fallback
   };
 
   const renderPagination = () => {
@@ -171,18 +239,47 @@ export default function HomeScreen() {
 
   const renderFileList = () => {
     if (loading) {
-      return <ActivityIndicator style={{marginTop: 30}} size="large" />;
+      return (
+        <View style={{marginTop: 20}}>
+          <SkeletonPlaceholder borderRadius={8}>
+            {[...Array(5)].map((_, index) => (
+              <View
+                key={index}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginBottom: 20,
+                  paddingHorizontal: 16,
+                }}>
+                <View style={{width: 40, height: 40, borderRadius: 8}} />
+
+                <View style={{marginLeft: 12, flex: 1}}>
+                  <View style={{width: '70%', height: 14, marginBottom: 6}} />
+                  <View style={{width: '50%', height: 12}} />
+                </View>
+
+                <View style={{width: 20, height: 20, borderRadius: 10}} />
+              </View>
+            ))}
+          </SkeletonPlaceholder>
+        </View>
+      );
     }
+
     if (error) {
       return <Text style={styles.noFilesText}>{error}</Text>;
     }
+
     if (documents.length === 0) {
       return <Text style={styles.noFilesText}>No documents found.</Text>;
     }
 
+    const visibleDocs =
+      listTab === 'recent' ? documents.slice(0, 5) : documents;
+
     return (
       <>
-        {documents.map((file, index) => (
+        {visibleDocs.map((file, index) => (
           <List.Item
             key={file._id}
             title={file.documentName}
@@ -197,7 +294,7 @@ export default function HomeScreen() {
             onPress={() => handleFilePress(file)}
             style={[
               styles.listItem,
-              index < documents.length - 1 && {
+              index < visibleDocs.length - 1 && {
                 borderBottomWidth: StyleSheet.hairlineWidth,
                 borderBottomColor: theme.colors.outlineVariant,
               },
@@ -206,7 +303,7 @@ export default function HomeScreen() {
             descriptionStyle={styles.listItemDescription}
           />
         ))}
-        {renderPagination()}
+        {listTab === 'all' && renderPagination()}
       </>
     );
   };
@@ -215,7 +312,6 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <AppHeader showSearchIcon={true} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Welcome and Quick Actions sections remain unchanged */}
         <View style={styles.welcomeContainer}>
           <ImageBackground
             source={{
@@ -241,9 +337,7 @@ export default function HomeScreen() {
           <View style={styles.quickActionsRow}>
             <Surface style={styles.quickActionSurface} elevation={2}>
               <TouchableRipple
-                onPress={() =>
-                  navigation.navigate('Upload', {documentType: 'Image'})
-                }
+                onPress={() => handleOpenCamera()}
                 style={styles.quickActionTouchable}
                 borderless={true}>
                 <View style={styles.quickActionContent}>
@@ -274,13 +368,12 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Files Section updated with both tabs */}
         <View style={styles.sectionContainer}>
           <SegmentedButtons
             value={listTab}
             onValueChange={setListTab}
             style={styles.segmentedButtons}
-            buttons={styledButtons} // Use the dynamically styled buttons
+            buttons={styledButtons}
             density="medium"
           />
           <List.Section style={styles.listSection}>
@@ -292,7 +385,6 @@ export default function HomeScreen() {
   );
 }
 
-// Styles function is unchanged and correct
 const createStyles = theme => ({
   container: {flex: 1, backgroundColor: theme.colors.background},
   scrollContent: {paddingHorizontal: 16, paddingBottom: 20},

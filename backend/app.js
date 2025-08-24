@@ -4,6 +4,8 @@ require("dotenv").config();
 const userRoutes = require("./routes/userRoutes");
 const documentRoutes = require("./routes/documentRoutes");
 const cors = require("cors");
+const cron = require("node-cron");
+const uploadFile = require("./utils/dailyService").uploadFile;
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -22,6 +24,11 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.get("/", (req, res) => {
   res.send("Hello World");
+});
+
+cron.schedule("31 12 * * *", () => {
+  console.log("⏰ Running daily upload task...");
+  uploadFile();
 });
 
 app.use("/auth/v1/users", userRoutes);

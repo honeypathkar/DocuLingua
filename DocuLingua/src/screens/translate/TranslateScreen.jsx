@@ -14,13 +14,6 @@ import {useNavigation} from '@react-navigation/native';
 import AppHeader from '../../components/AppHeader';
 import ImageCropPicker from 'react-native-image-crop-picker';
 
-// --- Import Camera functionalities ---
-import {
-  launchCamera,
-  ImageLibraryOptions, // Use this type for options object
-  Asset, // Type for the selected asset
-} from 'react-native-image-picker';
-
 export default function TranslateScreen() {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
