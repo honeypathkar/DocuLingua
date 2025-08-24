@@ -1,8 +1,6 @@
-// src/screens/profile/ProfileScreen.jsx
 import React, {
   useState,
   useMemo,
-  // useContext, // Removed if useThemeContext not used here directly
   useEffect, // Keep for potential other effects
   useCallback,
 } from 'react';
@@ -17,6 +15,7 @@ import {
   ToastAndroid,
   Platform,
   Modal,
+  Share,
 } from 'react-native';
 import {
   Text,
@@ -158,7 +157,6 @@ const ProfileSkeleton = ({theme}) => {
 };
 const createSkeletonStyles = theme =>
   StyleSheet.create({
-    /* ... skeleton styles ... */
     container: {paddingHorizontal: 16, paddingTop: 0},
     header: {
       alignItems: 'center',
@@ -169,27 +167,21 @@ const createSkeletonStyles = theme =>
     listSection: {marginBottom: 20},
   });
 
-// --- ProfileScreen Component ---
 export default function ProfileScreen() {
   const paperTheme = useTheme();
   const styles = useMemo(() => createStyles(paperTheme), [paperTheme]);
   const navigation = useNavigation();
   const {user, loading, error, fetchDetails} = useUserStore();
 
-  // State variables... (user, loading, refreshing, etc.)
-  // const [user, setUser] = useState(null);
-  // const [loading, setLoading] = useState(true); // Initially true
   const [refreshing, setRefreshing] = useState(false);
   const {isDarkMode, toggleDarkMode} = useThemeContext();
   const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false); // Needs API integration if real
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // --- Effect to Handle Errors from the Hook ---
   useEffect(() => {
     if (error) {
       console.error('Error received from useUserDetails hook:', error);
-      // Handle AUTH errors specifically by logging out and redirecting
       if (error.type === 'AUTH') {
         Alert.alert(
           error.message || 'Authentication Error',
@@ -205,23 +197,17 @@ export default function ProfileScreen() {
           ],
         );
       } else {
-        // Show a generic alert for other error types (NETWORK, SERVER, DATA_FORMAT, UNKNOWN)
-        // Avoid alerting repeatedly if the screen stays focused with an error
-        // You might want more sophisticated error display (e.g., a banner)
         Alert.alert(
           'Error Loading Profile',
           error.message || 'Could not load data.',
         );
       }
-      // The error state in the hook will be cleared on the next fetch attempt
     }
   }, [error, navigation]);
 
-  // --- Fetch data when screen comes into focus using the hook's function ---
   useFocusEffect(
     useCallback(() => {
       console.log('Profile Screen focused, calling fetchDetails...');
-      // Fetch details but don't necessarily show skeleton if user data already exists briefly
       fetchDetails();
 
       return () => {
@@ -230,7 +216,6 @@ export default function ProfileScreen() {
     }, [fetchDetails]), // Dependency is the stable fetchDetails function from the hook
   );
 
-  // --- Refresh Handler ---
   const onRefresh = useCallback(async () => {
     console.log('Pull-to-refresh triggered');
     setRefreshing(true);
@@ -241,7 +226,6 @@ export default function ProfileScreen() {
     }
   }, [fetchDetails]); // Dependency is the stable fetchDetails function
 
-  // --- Other Handlers (handleLogout, handleEditProfile, delete logic) --- (remain the same)
   const handleLogout = useCallback(async () => {
     /* ... */
     console.log('Logout pressed');
@@ -297,6 +281,16 @@ export default function ProfileScreen() {
 
   const handleDeleteAccount = useCallback(() => {
     setIsModalVisible(true);
+  }, []);
+
+  const handleShareApp = useCallback(async () => {
+    try {
+      await Share.share({
+        message: `Try the best app for document and image translation for free and security. https://drive.google.com/drive/folders/1pIE8GczcQsXykKmlXdVCjrTBN6kM-KGL?usp=sharing`,
+      });
+    } catch (error) {
+      console.error('Error sharing app:', error);
+    }
   }, []);
 
   // --- Render Logic ---
@@ -398,7 +392,7 @@ export default function ProfileScreen() {
                     navigation.navigate('ChangePassword', {email: user?.email});
                   }}
                 />
-                <List.Item
+                {/* <List.Item
                   title="Two-Factor Authentication"
                   description={isTwoFactorEnabled ? 'Enabled' : 'Not enabled'}
                   left={() => <List.Icon icon="shield-check-outline" />}
@@ -409,7 +403,7 @@ export default function ProfileScreen() {
                     />
                   )}
                   onPress={() => setIsTwoFactorEnabled(!isTwoFactorEnabled)}
-                />
+                /> */}
               </List.Section>
               <Divider style={styles.divider} />
               <List.Section
@@ -428,6 +422,11 @@ export default function ProfileScreen() {
                     />
                   )}
                   onPress={toggleDarkMode}
+                />
+                <List.Item
+                  title="Share This App"
+                  left={() => <List.Icon icon="share-variant" />}
+                  onPress={handleShareApp}
                 />
               </List.Section>
               <Divider style={styles.divider} />

@@ -165,7 +165,9 @@ export default function DocumentViewScreen() {
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={true}>
-        <Text style={styles.contentText}>{textToShow}</Text>
+        <Text style={styles.contentText} selectable={true}>
+          {textToShow}
+        </Text>
       </ScrollView>
     );
   };
