@@ -41,6 +41,10 @@ export default function HomeScreen() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalDocuments, setTotalDocuments] = useState(0);
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
@@ -50,12 +54,19 @@ export default function HomeScreen() {
       if (!token) {
         throw new Error('Authentication token not found.');
       }
-      const response = await axios.get(GetDocumentbyUserIdUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await axios.get(
+        `${GetDocumentbyUserIdUrl}?page=${page}&limit=${limit}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
-      setDocuments(response.data.data || []);
+      );
+
+      // Update states with pagination data
+      setDocuments(response.data.data.documents);
+      setTotalPages(response.data.data.pagination.totalPages);
+      setTotalDocuments(response.data.data.pagination.totalDocuments);
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -66,13 +77,17 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit]);
 
   useEffect(() => {
     if (isFocused) {
       fetchDocuments();
     }
   }, [isFocused, fetchDocuments]);
+
+  const handleOptionPress = docType => {
+    navigation.getParent()?.navigate('UploadScreen', {documentType: docType});
+  };
 
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -100,18 +115,6 @@ export default function HomeScreen() {
     [listTab, theme],
   );
 
-  // --- Filter documents based on the active tab ---
-  const displayedFiles = useMemo(() => {
-    if (listTab === 'recent') {
-      return documents
-        .slice(0, 3)
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Show only the first 3 files
-    }
-    return documents.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
-    ); // Show all files for the 'all' tab
-  }, [listTab, documents]);
-
   const handleFilePress = file => {
     navigation.navigate('DocumentView', {
       documentId: file._id,
@@ -136,6 +139,36 @@ export default function HomeScreen() {
     return 'file-document-outline';
   };
 
+  const renderPagination = () => {
+    return (
+      <View style={styles.paginationContainer}>
+        <TouchableRipple
+          onPress={() => setPage(prev => Math.max(1, prev - 1))}
+          disabled={page === 1}>
+          <Icon
+            source="chevron-left"
+            size={24}
+            color={page === 1 ? theme.colors.disabled : theme.colors.primary}
+          />
+        </TouchableRipple>
+        <Text style={styles.paginationText}>
+          Page {page} of {totalPages}
+        </Text>
+        <TouchableRipple
+          onPress={() => setPage(prev => Math.min(totalPages, prev + 1))}
+          disabled={page === totalPages}>
+          <Icon
+            source="chevron-right"
+            size={24}
+            color={
+              page === totalPages ? theme.colors.disabled : theme.colors.primary
+            }
+          />
+        </TouchableRipple>
+      </View>
+    );
+  };
+
   const renderFileList = () => {
     if (loading) {
       return <ActivityIndicator style={{marginTop: 30}} size="large" />;
@@ -143,35 +176,39 @@ export default function HomeScreen() {
     if (error) {
       return <Text style={styles.noFilesText}>{error}</Text>;
     }
-    // Check displayedFiles for length, not the original documents array
-    if (displayedFiles.length === 0) {
+    if (documents.length === 0) {
       return <Text style={styles.noFilesText}>No documents found.</Text>;
     }
-    // Map over the filtered displayedFiles
-    return displayedFiles.map((file, index) => (
-      <List.Item
-        key={file._id}
-        title={file.documentName}
-        description={`Translated on: ${formatDate(file.createdAt)}`}
-        left={() => (
-          <List.Icon
-            icon={getFileIcon(file.documentName)}
-            color={theme.colors.primary}
+
+    return (
+      <>
+        {documents.map((file, index) => (
+          <List.Item
+            key={file._id}
+            title={file.documentName}
+            description={`Translated on: ${formatDate(file.createdAt)}`}
+            left={() => (
+              <List.Icon
+                icon={getFileIcon(file.documentName)}
+                color={theme.colors.primary}
+              />
+            )}
+            right={() => <List.Icon icon="chevron-right" />}
+            onPress={() => handleFilePress(file)}
+            style={[
+              styles.listItem,
+              index < documents.length - 1 && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: theme.colors.outlineVariant,
+              },
+            ]}
+            titleStyle={styles.listItemTitle}
+            descriptionStyle={styles.listItemDescription}
           />
-        )}
-        right={() => <List.Icon icon="chevron-right" />}
-        onPress={() => handleFilePress(file)}
-        style={[
-          styles.listItem,
-          index < displayedFiles.length - 1 && {
-            borderBottomWidth: StyleSheet.hairlineWidth,
-            borderBottomColor: theme.colors.outlineVariant,
-          },
-        ]}
-        titleStyle={styles.listItemTitle}
-        descriptionStyle={styles.listItemDescription}
-      />
-    ));
+        ))}
+        {renderPagination()}
+      </>
+    );
   };
 
   return (
@@ -221,9 +258,7 @@ export default function HomeScreen() {
             </Surface>
             <Surface style={styles.quickActionSurface} elevation={2}>
               <TouchableRipple
-                onPress={() =>
-                  navigation.navigate('Upload', {documentType: 'PDF'})
-                }
+                onPress={() => handleOptionPress('PDF')}
                 style={styles.quickActionTouchable}
                 borderless={true}>
                 <View style={styles.quickActionContent}>
@@ -258,124 +293,136 @@ export default function HomeScreen() {
 }
 
 // Styles function is unchanged and correct
-const createStyles = theme =>
-  StyleSheet.create({
-    container: {flex: 1, backgroundColor: theme.colors.background},
-    scrollContent: {paddingHorizontal: 16, paddingBottom: 20},
-    welcomeContainer: {
-      marginTop: 16,
-      marginBottom: 24,
-      borderRadius: 12,
-      overflow: 'hidden',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: {width: 0, height: 2},
-          shadowOpacity: 0.1,
-          shadowRadius: 3,
-        },
-        android: {elevation: 4},
-      }),
-      backgroundColor: theme.colors.surface,
-    },
-    welcomeImageBackground: {height: 200, justifyContent: 'center'},
-    imageBackgroundImageStyle: {borderRadius: 12},
-    textOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0, 0, 0, 0.35)',
-      borderRadius: 12,
-    },
-    welcomeContent: {
-      padding: 20,
-      alignItems: 'flex-start',
-    },
-    welcomeTitle: {
-      color: 'white',
-      fontWeight: 'bold',
-      marginBottom: 4,
-      fontSize: 24,
-    },
-    welcomeSubtitle: {
-      color: 'white',
-      fontSize: 14,
-      opacity: 0.9,
-    },
-    sectionContainer: {marginBottom: 24},
-    sectionTitle: {
-      marginBottom: 12,
-      fontWeight: 'bold',
-      color: theme.colors.onSurface,
-      fontSize: 18,
-    },
-    quickActionsRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-    },
-    quickActionSurface: {
-      borderRadius: 12,
-      width: '48%',
-      backgroundColor: theme.colors.surface,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: {width: 0, height: 1},
-          shadowOpacity: 0.1,
-          shadowRadius: 2,
-        },
-        android: {elevation: 2},
-      }),
-    },
-    quickActionTouchable: {
-      width: '100%',
-      paddingVertical: 20,
-      paddingHorizontal: 10,
-      borderRadius: 12,
-      alignItems: 'center',
-    },
-    quickActionContent: {
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    quickActionText: {
-      marginTop: 8,
-      fontSize: 14,
-      color: theme.colors.onSurface,
-      fontWeight: '500',
-    },
-    segmentedButtons: {
-      marginBottom: 16,
-    },
-    listSection: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 8,
-      overflow: 'hidden',
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: {width: 0, height: 1},
-          shadowOpacity: 0.1,
-          shadowRadius: 2,
-        },
-        android: {elevation: 2},
-      }),
-    },
-    listItem: {
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      backgroundColor: 'transparent',
-    },
-    listItemTitle: {
-      fontSize: 16,
-      color: theme.colors.onSurface,
-      fontWeight: '500',
-    },
-    listItemDescription: {
-      fontSize: 12,
-      color: theme.colors.onSurfaceVariant,
-    },
-    noFilesText: {
-      textAlign: 'center',
-      paddingVertical: 20,
-      color: theme.colors.onSurfaceVariant,
-    },
-  });
+const createStyles = theme => ({
+  container: {flex: 1, backgroundColor: theme.colors.background},
+  scrollContent: {paddingHorizontal: 16, paddingBottom: 20},
+  welcomeContainer: {
+    marginTop: 16,
+    marginBottom: 24,
+    borderRadius: 12,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {elevation: 4},
+    }),
+    backgroundColor: theme.colors.surface,
+  },
+  welcomeImageBackground: {height: 200, justifyContent: 'center'},
+  imageBackgroundImageStyle: {borderRadius: 12},
+  textOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderRadius: 12,
+  },
+  welcomeContent: {
+    padding: 20,
+    alignItems: 'flex-start',
+  },
+  welcomeTitle: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 4,
+    fontSize: 24,
+  },
+  welcomeSubtitle: {
+    color: 'white',
+    fontSize: 14,
+    opacity: 0.9,
+  },
+  sectionContainer: {marginBottom: 24},
+  sectionTitle: {
+    marginBottom: 12,
+    fontWeight: 'bold',
+    color: theme.colors.onSurface,
+    fontSize: 18,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  quickActionSurface: {
+    borderRadius: 12,
+    width: '48%',
+    backgroundColor: theme.colors.surface,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 1},
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {elevation: 2},
+    }),
+  },
+  quickActionTouchable: {
+    width: '100%',
+    paddingVertical: 20,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  quickActionContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: theme.colors.onSurface,
+    fontWeight: '500',
+  },
+  segmentedButtons: {
+    marginBottom: 16,
+  },
+  listSection: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 8,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 1},
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {elevation: 2},
+    }),
+  },
+  listItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'transparent',
+  },
+  listItemTitle: {
+    fontSize: 16,
+    color: theme.colors.onSurface,
+    fontWeight: '500',
+  },
+  listItemDescription: {
+    fontSize: 12,
+    color: theme.colors.onSurfaceVariant,
+  },
+  noFilesText: {
+    textAlign: 'center',
+    paddingVertical: 20,
+    color: theme.colors.onSurfaceVariant,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.outlineVariant,
+  },
+  paginationText: {
+    marginHorizontal: 16,
+    color: theme.colors.onSurface,
+    fontSize: 14,
+  },
+});

@@ -221,25 +221,83 @@ const getAllDocuments = async (req, res) => {
 };
 
 // Get all documents created by the logged-in user
+
 const getUserDocuments = async (req, res) => {
   try {
-    const userId = req.userId; // Assuming verifyToken middleware adds userId to req
+    const userId = req.userId;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const searchQuery = req.query.search || "";
 
     if (!userId) {
-      // This case should ideally be caught by verifyToken middleware
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    const documents = await DocumentModel.find({ userId });
+    // Build query object
+    const query = {
+      userId,
+      ...(searchQuery && {
+        documentName: {
+          $regex: new RegExp(searchQuery, "i"),
+        },
+      }),
+    };
+
+    // Total docs
+    const totalDocuments = await DocumentModel.countDocuments(query);
+    const totalPages = Math.max(1, Math.ceil(totalDocuments / limit));
+
+    // Validate requested page
+    if (page > totalPages) {
+      return res.status(404).json({
+        message: "Page not found",
+        data: {
+          documents: [],
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalDocuments,
+            limit,
+            hasNextPage: false,
+            hasPreviousPage: page > 1,
+          },
+        },
+      });
+    }
+
+    // Skip for pagination
+    const skip = (page - 1) * limit;
+
+    // Fetch documents
+    const documents = await DocumentModel.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
     return res.status(200).json({
       message: "User documents retrieved successfully",
-      data: documents,
+      data: {
+        documents,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalDocuments,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+        search: {
+          query: searchQuery,
+          resultsCount: documents.length,
+        },
+      },
     });
   } catch (error) {
     console.error("Error fetching user documents:", error);
-    return res
-      .status(500)
-      .json({ message: "Server error while fetching user documents" });
+    return res.status(500).json({
+      message: "Server error while fetching user documents",
+      error: error.message,
+    });
   }
 };
 
