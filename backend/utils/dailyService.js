@@ -1,8 +1,7 @@
-const fs = require("fs");
+const axios = require("axios");
 const transporter = require("./transporter");
 const supabase = require("./supabase");
 
-const FILE_PATH = "./daily.jpg";
 const BUCKET = "doculingua";
 const FILE_NAME = "daily/daily.jpg";
 
@@ -10,9 +9,12 @@ async function uploadFile() {
   try {
     await supabase.storage.from(BUCKET).remove([FILE_NAME]);
 
-    const fileBuffer = fs.readFileSync(FILE_PATH);
+    const response = await axios.get(`${process.env.APP_URL}/daily.jpg`, {
+      responseType: "arraybuffer",
+    });
+    const fileBuffer = Buffer.from(response.data);
 
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(BUCKET)
       .upload(FILE_NAME, fileBuffer, {
         contentType: "image/jpeg",
@@ -42,6 +44,8 @@ async function uploadFile() {
       subject: "Daily Image Upload Failed ❌",
       text: `An error occurred:\n${err.message}`,
     });
+
+    throw err;
   }
 }
 
