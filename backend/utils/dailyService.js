@@ -8,8 +8,9 @@ const FILE_NAME = "daily/daily.jpg";
 async function uploadFile() {
   try {
     await supabase.storage.from(BUCKET).remove([FILE_NAME]);
+    const image_url = process.env.IMAGE_URL;
 
-    const response = await axios.get(`${process.env.APP_URL}/daily.jpg`, {
+    const response = await axios.get(image_url, {
       responseType: "arraybuffer",
     });
     const fileBuffer = Buffer.from(response.data);
