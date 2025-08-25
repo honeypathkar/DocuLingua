@@ -6,6 +6,7 @@ const documentRoutes = require("./routes/documentRoutes");
 const cors = require("cors");
 const cron = require("node-cron");
 const uploadFile = require("./utils/dailyService").uploadFile;
+const cronRouter = require("./routes/cron");
 
 const app = express();
 const PORT = process.env.PORT || 8001;
@@ -26,13 +27,9 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
-cron.schedule("31 12 * * *", () => {
-  console.log("⏰ Running daily upload task...");
-  uploadFile();
-});
-
 app.use("/auth/v1/users", userRoutes);
 app.use("/auth/v1/documents", documentRoutes);
+app.use("/api/cron", cronRouter);
 
 // Connect to DB and start server
 connectDB();
