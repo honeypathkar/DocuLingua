@@ -2,13 +2,13 @@
 const express = require("express");
 const {
   uploadDocument,
-  deleteDocument,
   documentById,
   getAllDocuments,
   getUserDocuments,
   updateDocument,
   deleteAllDocuments,
   translateText,
+  deleteDocuments,
 } = require("../controllers/documentController");
 const upload = require("../utils/multer");
 const verifyToken = require("../middleware/verifyToken");
@@ -31,7 +31,7 @@ router.get("/all", verifyToken, getAllDocuments);
 router.delete("/all", verifyToken, deleteAllDocuments);
 
 //Delete by id
-router.delete("/:docId", verifyToken, deleteDocument);
+router.delete("/documents", verifyToken, deleteDocuments);
 
 //Get by id of documents
 router.get("/:id", verifyToken, documentById);

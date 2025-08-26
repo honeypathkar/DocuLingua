@@ -124,48 +124,44 @@ const uploadDocument = async (req, res) => {
   }
 };
 
-const deleteDocument = async (req, res) => {
+const deleteDocuments = async (req, res) => {
   try {
     const userId = req.userId;
-    const { docId } = req.params;
+    const { docIds } = req.body;
 
-    if (!docId) {
-      return res.status(400).json({ message: "Document ID is required" });
+    if (!docIds || !Array.isArray(docIds) || docIds.length === 0) {
+      return res.status(400).json({ message: "Document IDs are required" });
     }
 
-    // Step 1: Find the document by ID to ensure it exists and belongs to the user (optional check)
-    const document = await DocumentModel.findOne({
-      _id: docId,
+    const documents = await DocumentModel.find({
+      _id: { $in: docIds },
       userId: userId,
     });
 
-    if (!document) {
-      // If checking for userId, this message covers both "not found" and "unauthorized"
-      return res
-        .status(404)
-        .json({ message: "Document not found or access denied" });
+    if (!documents.length) {
+      return res.status(404).json({
+        message: "No matching documents found or access denied",
+      });
     }
 
-    // Step 2: Delete from Supabase Storage is REMOVED
-    // Since supabasePublicId is no longer stored, we cannot delete the corresponding file from Supabase.
-    // The file uploaded during uploadDocument is now treated as temporary and deleted at the end of that function.
-    // If there's a need to delete files from Supabase associated with a document at this stage,
-    // a different mechanism or storing the uniqueStorageFilename would be required.
-
-    // Step 3: Delete the document from MongoDB
-    await DocumentModel.findByIdAndDelete(docId);
-
-    // Step 4: Remove reference from user's documents
-    await UserModel.findByIdAndUpdate(userId, {
-      $pull: { documents: docId },
+    const deleteResult = await DocumentModel.deleteMany({
+      _id: { $in: docIds },
+      userId: userId,
     });
 
-    res.status(200).json({ message: "Document metadata deleted successfully" });
+    await UserModel.findByIdAndUpdate(userId, {
+      $pull: { documents: { $in: docIds } },
+    });
+
+    return res.status(200).json({
+      message: "Documents deleted successfully",
+      deletedCount: deleteResult.deletedCount,
+    });
   } catch (error) {
-    console.error("Delete Document Error:", error);
-    res
-      .status(500)
-      .json({ message: error.message || "Failed to delete document metadata" });
+    console.error("Delete Documents Error:", error);
+    res.status(500).json({
+      message: error.message || "Failed to delete documents",
+    });
   }
 };
 
@@ -485,7 +481,7 @@ const translateText = async (req, res) => {
 
 module.exports = {
   uploadDocument,
-  deleteDocument,
+  deleteDocuments,
   documentById,
   getAllDocuments,
   getUserDocuments,
