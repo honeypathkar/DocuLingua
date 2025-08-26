@@ -3,7 +3,6 @@ name: Daily Cron Job
 on:
   schedule:
     - cron: "0 10 * * *"
-  workflow_dispatch: # optional: lets you run manually from Actions tab
 
 jobs:
   run-cron:
