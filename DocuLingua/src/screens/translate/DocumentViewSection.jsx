@@ -21,7 +21,11 @@ import {
 } from 'react-native-paper';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import axios from 'axios';
-import {DocumentsUrl, DocumentCurdOperationUrl} from '../../../API';
+import {
+  DocumentsUrl,
+  DocumentCurdOperationUrl,
+  DeleteDocumentsUrl,
+} from '../../../API';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DocumentViewScreen() {
@@ -118,8 +122,9 @@ export default function DocumentViewScreen() {
     setIsUpdating(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
-      await axios.delete(`${DocumentCurdOperationUrl}/${documentId}`, {
+      await axios.delete(DeleteDocumentsUrl, {
         headers: {Authorization: `Bearer ${token}`},
+        data: {docIds: [documentId]},
       });
       setDeleteModalVisible(false);
       ToastAndroid.show('Document deleted successfully.', ToastAndroid.SHORT);

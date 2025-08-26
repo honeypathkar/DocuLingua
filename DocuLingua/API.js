@@ -17,3 +17,4 @@ export const TranslateTextUrl = `${API_URL}/documents/translate`;
 export const DocumentsUrl = `${API_URL}/documents`;
 export const GetDocumentbyUserIdUrl = `${API_URL}/documents/user`;
 export const DocumentCurdOperationUrl = `${API_URL}/documents`; // + /id
+export const DeleteDocumentsUrl = `${API_URL}/documents/documents`;
