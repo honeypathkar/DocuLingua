@@ -32,6 +32,7 @@ import useDocumentStore from '../../store/documentStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import {DeleteDocumentsUrl} from '../../../API';
+import BouncyCheckbox from 'react-native-bouncy-checkbox';
 
 const baseButtons = [
   {value: 'recent', label: 'Recent'},
@@ -313,12 +314,18 @@ export default function HomeScreen() {
             left={() =>
               selectionMode ? (
                 <View style={styles.checkboxContainer}>
-                  <Checkbox
-                    status={
-                      selectedDocuments.has(file._id) ? 'checked' : 'unchecked'
-                    }
+                  <BouncyCheckbox
+                    isChecked={selectedDocuments.has(file._id)}
                     onPress={() => handleDocumentSelect(file._id)}
-                    color={theme.colors.primary}
+                    fillColor={theme.colors.primary} // same as your theme color
+                    size={30} // optional, adjust checkbox size
+                    disableBuiltInState // important: lets you fully control state via isChecked
+                    text={
+                      <Text style={{color: theme.colors.primary}}>
+                        {file.documentName}
+                      </Text>
+                    }
+                    iconImageStyle={{width: 15, height: 15}}
                   />
                 </View>
               ) : (
